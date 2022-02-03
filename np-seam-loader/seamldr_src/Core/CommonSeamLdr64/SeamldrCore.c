@@ -252,9 +252,11 @@ void SeamldrAcm(SEAMLDR_COM64_DATA *pCom64, PT_CTX* PtCtx) {
     UINT64 Status = NP_SEAMLDR_PARAMS_STATUS_SUCCESS;
 	BOOL MutexAcquired = FALSE;
     BOOL SEAMRRUnlocked = FALSE;
+    UINT64 BiosDone;
     UINT64 NumTdxPrivateBits;
     UINT64 CPagingStructSize;
     UINT64 OriginalBIOSID;
+    UINT64 ia32_misc_enable_org;
     SeamrrBase_u     SeamrrBaseMsr;
     SeamrrMask_u     SeamrrMaskMsr;
 
@@ -285,6 +287,7 @@ void SeamldrAcm(SEAMLDR_COM64_DATA *pCom64, PT_CTX* PtCtx) {
         goto EXIT;
     }
 
+    BiosDone = readMsr64(MSR_BIOS_DONE);
     NumTdxPrivateBits = (readMsr64(MSR_MKTME_ACTIVATE) >> 36ULL) & 0xFULL; // bits 39:36
     UINT64 KidBitMask = ((1ULL << NumTdxPrivateBits) - 1ULL);
     SeamldrData.TdxPrivateKidMask = KidBitMask << ((UINT64)GetMaxPhyAddr() - NumTdxPrivateBits);
@@ -343,7 +346,7 @@ void SeamldrAcm(SEAMLDR_COM64_DATA *pCom64, PT_CTX* PtCtx) {
 
     if ((SeamldrData.PSysInfoTable->TotNumSockets > SYS_INFO_TABLE_SOCKET_CPUID_TABLE_SIZE) ||
         (SeamldrData.PSysInfoTable->TotNumSockets == 0)){
-        PRINT_HEX_VAL("Invalid number of sockets: \n", SYS_INFO_TABLE_SOCKET_CPUID_TABLE_SIZE);
+        PRINT_HEX_VAL("Invalid number of sockets: \n", SeamldrData.PSysInfoTable->TotNumSockets);
         Status = NP_SEAMLDR_PARAMS_STATUS_EBADPARAM;
         goto EXIT;
     }
@@ -381,7 +384,7 @@ void SeamldrAcm(SEAMLDR_COM64_DATA *pCom64, PT_CTX* PtCtx) {
         goto EXIT;
     }
 
-	// If the compare succeeds, then the SeamldrMutexStatus moves to LOAD_IN_PROGRESS and set a flag – SET_LOAD_IN_PROGRESS to 1 – 
+	// If the compare succeeds, then the SeamldrMutexStatus moves to LOAD_IN_PROGRESS and set a flag SET_LOAD_IN_PROGRESS to 1
 	// to indicate that this instance of the SEAMLDR moved the SeamldrMutexStatus field to LOAD_IN_PROGRESS.
 	MutexAcquired = TRUE;
 
@@ -394,7 +397,6 @@ void SeamldrAcm(SEAMLDR_COM64_DATA *pCom64, PT_CTX* PtCtx) {
     ReadSeamExtendMsr((UINT64) &SeamldrData.SeamExtend);
     if ((SeamldrData.SeamExtend.PSeamldrReady != 0) || (SeamldrData.SeamExtend.SeamReady != 0)) {
         ComSerialOut("Error: P Seamldr hasn't shut down properly\n");
-        SeamldrData.PSysInfoTable->NpSeamldrMutex = NP_SEAMLDR_MUTEX_CLEAR;
         Status = NP_SEAMLDR_PARAMS_STATUS_EMODBUSY;
         goto EXIT;
     }
@@ -509,7 +511,7 @@ EXIT:
             SeamldrData.PSysInfoTable->NpSeamldrMutex = NP_SEAMLDR_MUTEX_CLEAR;
         }
 
-        // https://hsdes.intel.com/appstore/article/#/1308083915
+        
         // SEAM range relocking:
         SeamrrMaskMsr.valid = 1;
         writeMsr64(MSR_IA32_SEAMRR_MASK, SeamrrMaskMsr.raw);

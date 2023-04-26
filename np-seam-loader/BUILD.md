@@ -20,15 +20,15 @@ The binary generation contains the date of the created binary. Therefore, the bu
 3) Open a command prompt in the above project's folder and the Build the project, using the build date in YYYYMMDD format: 
 
 ```
-BLD REL_NT O1 [build-date]
+BLDX REL_NT O1 [build-date]
 ```
 	
-The ACM binary will be built in Projects\Server\Spr\Seamldr\BUILD\PRJ\REL_NT\O1\_SEAMLDR_REL_NT_O1.PW.bin
+The ACM binary will be built in Projects\Server\Spr\Seamldr\BUILD\PRJ\REL_NT\O1\\_SEAMLDR_REL_NT_O1.PW.bin
 
 4) Clean everything:
  
 ```
-BLD REL_NT CLEANALL
+BLDX REL_NT CLEANALL
 ```
 
 ## Environment dependencies
@@ -42,5 +42,5 @@ In order to reproduce the exact binary, it is required to include the production
 in the make target :  
 
 ```bash
-BLD REL_NT O1 YYYYMMDD
+BLDX REL_NT O1 YYYYMMDD
 

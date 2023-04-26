@@ -384,7 +384,7 @@ void SeamldrAcm(SEAMLDR_COM64_DATA *pCom64, PT_CTX* PtCtx) {
         goto EXIT;
     }
 
-	// If the compare succeeds, then the SeamldrMutexStatus moves to LOAD_IN_PROGRESS and set a flag – SET_LOAD_IN_PROGRESS to 1 – 
+	// If the compare succeeds, then the SeamldrMutexStatus moves to LOAD_IN_PROGRESS and set a flag SET_LOAD_IN_PROGRESS to 1
 	// to indicate that this instance of the SEAMLDR moved the SeamldrMutexStatus field to LOAD_IN_PROGRESS.
 	MutexAcquired = TRUE;
 
@@ -511,7 +511,7 @@ EXIT:
             SeamldrData.PSysInfoTable->NpSeamldrMutex = NP_SEAMLDR_MUTEX_CLEAR;
         }
 
-        // https://hsdes.intel.com/appstore/article/#/1308083915
+        
         // SEAM range relocking:
         SeamrrMaskMsr.valid = 1;
         writeMsr64(MSR_IA32_SEAMRR_MASK, SeamrrMaskMsr.raw);

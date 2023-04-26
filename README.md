@@ -26,7 +26,3 @@ It is designed to follow the steps below to load or update an Intel TDX module i
 
 For more details, refer - https://www.intel.com/content/dam/develop/external/us/en/documents-tps/intel-tdx-seamldr-interface-specification.pdf
 
-To contact us - use the issues section to report and we'll respond as soon as possible.
-
-This is pre-production version source code.
-

@@ -224,9 +224,9 @@ UINT32 __WaitRegisterBitClear (
 //  
 //  Description:	Stalls execution for 1 ms.
 //  +--------------------------------------------------------------------+
-//  ¦This procedure is specially designed to be called from trampoline   ¦
-//  ¦code. It is NOT very accurate but it can be called from code which  ¦    
-//  ¦has not been fixed up.                                              ¦
+//  This procedure is specially designed to be called from trampoline   
+//  code. It is NOT very accurate but it can be called from code which      
+//  has not been fixed up.                                              
 //  +--------------------------------------------------------------------+
 //  TSC clock period = 1000000us / 2.4Ghz = 0.000416666 us               
 //

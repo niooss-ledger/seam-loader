@@ -13,123 +13,104 @@
 //* particular purpose.                                                *;
 //*                                                                    *;
 //**********************************************************************;
+#pragma once
+#define VMCS_SIZE                                _4KB
 
-#ifndef VMCS_H
-#define VMCS_H
+#define VM_EXIT_CTRL_SAVE_DEBUG_CTRL             BIT2
+#define VM_EXIT_CTRL_HOST_ADDR_SPACE_SIZE        BIT9
+#define VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL       BIT12
+#define VM_EXIT_CTRL_SAVE_IA32_PAT               BIT18
+#define VM_EXIT_CTRL_LOAD_IA32_PAT               BIT19
+#define VM_EXIT_CTRL_SAVE_IA32_EFER              BIT20
+#define VM_EXIT_CTRL_LOAD_IA32_EFER              BIT21
+#define VM_EXIT_CTRL_CLEAR_IA32_BNDCFGS          BIT23
+#define VM_EXIT_CTRL_CONCEAL_VMX_FROM_PT         BIT24
+#define VM_EXIT_CTRL_CLEAR_IA32_RTIT_CTL         BIT25
+#define VM_EXIT_CTRL_CLEAR_LBR_CTL               BIT26
+#define VM_EXIT_CTRL_CLEAR_UINV                  BIT27
+#define VM_EXIT_CTRL_LOAD_CET_HOST_STATE         BIT28
+#define VM_EXIT_SAVE_IA32_PERF_GLOBAL_CTRL       BIT30
 
-#define VMCS_SIZE _4KB
-
-#define VM_EXIT_CTRL_SAVE_DEBUG_CTRL        BIT2
-#define VM_EXIT_CTRL_HOST_ADDR_SPACE_SIZE   BIT9
-#define VM_EXIT_LOAD_IA32_PERF_GLOBAL_CTRL  BIT12
-#define VM_EXIT_CTRL_SAVE_IA32_PAT          BIT18
-#define VM_EXIT_CTRL_LOAD_IA32_PAT          BIT19
-#define VM_EXIT_CTRL_SAVE_IA32_EFER         BIT20
-#define VM_EXIT_CTRL_LOAD_IA32_EFER         BIT21
-#define VM_EXIT_CTRL_CLEAR_IA32_BNDCFGS     BIT23
-#define VM_EXIT_CTRL_CONCEAL_VMX_FROM_PT    BIT24
-#define VM_EXIT_CTRL_CLEAR_IA32_RTIT_CTL    BIT25
-#define VM_EXIT_CTRL_CLEAR_LBR_CTL          BIT26
-#define VM_EXIT_CTRL_CLEAR_UINV             BIT27
-#define VM_EXIT_CTRL_LOAD_CET_HOST_STATE    BIT28
-#define VM_EXIT_SAVE_IA32_PERF_GLOBAL_CTRL  BIT30
-
-#define VM_ENTRY_CTRL_LOAD_DEBUG_CTRL               BIT2
-#define VM_ENTRY_CTRL_LOAD_IA32_PERF_GLOBAL_CTRL    BIT13
-#define VM_ENTRY_CTRL_LOAD_IA32_PAT                 BIT14
-#define VM_ENTRY_CTRL_LOAD_IA32_EFER                BIT15
-#define VM_ENTRY_CTRL_LOAD_IA32_BNDFGS              BIT16
-#define VM_ENTRY_CTRL_CONCEAL_VMX_FROM_PT           BIT17
-#define VM_ENTRY_CTRL_LOAD_IA32_RTIT_CTL            BIT18
-#define VM_ENTRY_CTRL_LOAD_UINV                     BIT19
-#define VM_ENTRY_CTRL_LOAD_GUEST_CET_STATE          BIT20
-#define VM_ENTRY_CTRL_LOAD_LBR_CTL                  BIT21
-#define VM_ENTRY_CTRL_LOAD_IA32_PKRS                BIT22
-
-
+#define VM_ENTRY_CTRL_LOAD_DEBUG_CTRL            BIT2
+#define VM_ENTRY_CTRL_LOAD_IA32_PERF_GLOBAL_CTRL BIT13
+#define VM_ENTRY_CTRL_LOAD_IA32_PAT              BIT14
+#define VM_ENTRY_CTRL_LOAD_IA32_EFER             BIT15
+#define VM_ENTRY_CTRL_LOAD_IA32_BNDFGS           BIT16
+#define VM_ENTRY_CTRL_CONCEAL_VMX_FROM_PT        BIT17
+#define VM_ENTRY_CTRL_LOAD_IA32_RTIT_CTL         BIT18
+#define VM_ENTRY_CTRL_LOAD_UINV                  BIT19
+#define VM_ENTRY_CTRL_LOAD_GUEST_CET_STATE       BIT20
+#define VM_ENTRY_CTRL_LOAD_LBR_CTL               BIT21
+#define VM_ENTRY_CTRL_LOAD_IA32_PKRS             BIT22
 
 /**
-
-This function store VMCS.
-
-@param Vmcs  VMCS pointer
-
-@return RFLAGS if VmPtrStore fail
-
-**/
+ *
+ * This function store VMCS.
+ *
+ * @param Vmcs  VMCS pointer
+ *
+ * @return RFLAGS if VmPtrStore fail
+ *
+ **/
 UINTN
-AsmVmPtrStore(
-    IN UINT64 *Vmcs
-);
+AsmVmPtrStore(IN UINT64 *Vmcs);
 
 /**
-
-This function load VMCS.
-
-@param Vmcs  VMCS pointer
-
-@return RFLAGS if VmPtrLoad fail
-
-**/
+ *
+ * This function load VMCS.
+ *
+ * @param Vmcs  VMCS pointer
+ *
+ * @return RFLAGS if VmPtrLoad fail
+ *
+ **/
 UINTN
-AsmVmPtrLoad(
-    IN UINT64 *Vmcs
-);
+AsmVmPtrLoad(IN UINT64 *Vmcs);
 
 /**
-
-This function clear VMCS.
-
-@param Vmcs  VMCS pointer
-
-@return RFLAGS if VmClear fail
-
-**/
+ *
+ * This function clear VMCS.
+ *
+ * @param Vmcs  VMCS pointer
+ *
+ * @return RFLAGS if VmClear fail
+ *
+ **/
 UINTN
-AsmVmClear(
-    IN UINT64 *Vmcs
-);
+AsmVmClear(IN UINT64 *Vmcs);
 
 /**
-
-This function write UINN16 data to VMCS region.
-
-@param Index VMCS region index
-@param Data  VMCS region value
-
-**/
+ *
+ * This function write UINN16 data to VMCS region.
+ *
+ * @param Index VMCS region index
+ * @param Data  VMCS region value
+ *
+ **/
 void
-VmWrite16(
-    IN UINT32  Index,
-    IN UINT16  Data
-);
+VmWrite16(IN UINT32 Index,
+          IN UINT16 Data);
 
 /**
-
-@param Index VMCS region index
-@param Data  VMCS region value
-
-**/
+ *
+ * @param Index VMCS region index
+ * @param Data  VMCS region value
+ *
+ **/
 void
-VmWrite64(
-    IN UINT32  Index,
-    IN UINT64  Data
-);
+VmWrite64(IN UINT32 Index,
+          IN UINT64 Data);
 
 /**
-
-This function write UINNN data to VMCS region.
-
-@param Index VMCS region index
-@param Data  VMCS region value
-
-**/
+ *
+ * This function write UINNN data to VMCS region.
+ *
+ * @param Index VMCS region index
+ * @param Data  VMCS region value
+ *
+ **/
 void
-VmWriteN(
-    IN UINT32  Index,
-    IN UINTN   Data
-);
+VmWriteN(IN UINT32 Index,
+         IN UINTN Data);
 
 void SetupVmcs(UINT64 SeamPtBaseAddr);
-
-#endif //VMCS_H

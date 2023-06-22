@@ -18,8 +18,8 @@
 #include <NpSeamldrApi.h>
 
 /*
- * Microsoft compiler can replacement code sections with internal memcpy so
- * we must provide a replacement. Just call copyData, but return copy to address
+ * Micrsoft compiler can replacement code sections with internal memcpy so
+ * we must provide a replacement. Just call copyData, but return copyto address
  * per api
  */
 void *memcpy(void *to, const void *from, UINT32 len)

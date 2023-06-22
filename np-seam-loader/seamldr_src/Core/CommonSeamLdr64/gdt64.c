@@ -15,7 +15,7 @@
 //**********************************************************************;
 
 #include <common.h>
-#include <header.h>
+#include <Header.h>
 
 GDT GdtBasePtr = {
   {0,0,0,0,0,0,0},

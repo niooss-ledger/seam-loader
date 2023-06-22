@@ -38,16 +38,14 @@ static void pseamldr_initialize_system_values(pseamldr_data_t* pseamldr_data)
     pseamldr_data->system_info.seamrr_base = seamrr_base;
     pseamldr_data->system_info.seamrr_size = seamrr_size;
 
-    ia32_tme_capability_t ia32_tme_capability;
-    ia32_tme_activate_t   ia32_tme_activate;
+    ia32_tme_activate_t           ia32_tme_activate;
+    ia32_tme_keyid_partitioning_t ia32_tme_keyid_partitioning;
 
-    ia32_tme_capability.raw = ia32_rdmsr(IA32_TME_CAPABILITY_MSR_ADDR);
+    ia32_tme_keyid_partitioning.raw = ia32_rdmsr(IA32_MKTME_KEYID_PARTITIONING_MSR_ADDR);
+
+    pseamldr_data->system_info.private_hkid_min =  ia32_tme_keyid_partitioning.num_mktme_kids + 1;
+
     ia32_tme_activate.raw   = ia32_rdmsr(IA32_TME_ACTIVATE_MSR_ADDR);
-
-    uint64_t max_mktme_hkids = MIN((uint64_t)ia32_tme_capability.mk_tme_max_keys,
-            BIT(ia32_tme_activate.mk_tme_keyid_bits - ia32_tme_activate.tdx_reserved_keyid_bits));
-
-    pseamldr_data->system_info.max_mktme_hkids = max_mktme_hkids;
 
     uint64_t hkid_start_bit = pseamldr_data->system_info.max_pa - ia32_tme_activate.mk_tme_keyid_bits;
     uint64_t hkid_mask = BITS(pseamldr_data->system_info.max_pa - 1, hkid_start_bit);
@@ -61,13 +59,6 @@ static void pseamldr_initialize_system_values(pseamldr_data_t* pseamldr_data)
 
 _STATIC_INLINE_ void sys_control_msr_handling(pseamldr_data_t* pseamldr_data)
 {
-    // Set bit 13 of IA32_DEBUGCTL (Enable Uncore PMI) according to bit 13 of GUEST_IA32_DEBUGCTL field of P-SEAMLDR VMCS.
-    ia32_debugctl_t current_debugctl, guest_debugctl;
-    current_debugctl.raw = ia32_rdmsr(IA32_DEBUGCTL_MSR_ADDR);
-    ia32_vmread(VMX_GUEST_IA32_DEBUGCTLMSR_FULL_ENCODE, &guest_debugctl.raw);
-    current_debugctl.en_uncore_pmi = guest_debugctl.en_uncore_pmi;
-    ia32_wrmsr(IA32_DEBUGCTL_MSR_ADDR, current_debugctl.raw);
-
     // Write IA32_PRED_CMD = 0x1 (IBPB).
     ia32_pred_cmd_t pred_cmd = { .raw = 0 };
     pred_cmd.ibpb = 1;
@@ -103,6 +94,11 @@ void pseamldr_dispatcher(void)
     pseamldr_data_t* pseamldr_data = init_data_fast_ref_ptrs();
 
     TDX_LOG("PSEAMLDR Module entry start\n");
+
+    vm_vmexit_exit_reason_t exit_reason;
+    ia32_vmread(VMX_VM_EXIT_REASON_ENCODE, &exit_reason.raw);
+
+    pseamldr_sanity_check(exit_reason.basic_reason == VMEXIT_REASON_SEAMCALL, SCEC_VMM_DISPATCHER_SOURCE, 2);
 
     sys_control_msr_handling(pseamldr_data);
 

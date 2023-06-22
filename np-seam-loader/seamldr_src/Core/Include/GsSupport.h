@@ -21,7 +21,7 @@
 
 //
 // Default value used for the global /GS security cookie.
-// Only (partly) useful in the case there was an overflow prior to the call to 
+// Only (partly) useful in the case there was an overflow prior to the call to
 // __security_init_cookie()
 //
 #define DEFAULT_SECURITY_COOKIE 0xFF0A001B
@@ -32,6 +32,6 @@
 extern UINT32 __security_cookie;
 
 void __security_init_cookie(void);
-void __fastcall  __security_check_cookie(UINT32 _StackCookie);
+void __fastcall __security_check_cookie(UINT32 _StackCookie);
 
 #endif

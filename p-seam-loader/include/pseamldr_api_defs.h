@@ -55,7 +55,11 @@ typedef enum
 #define SEAMLDR_SCENARIO_LOAD                   0
 #define SEAMLDR_SCENARIO_UPDATE                 1
 
-#define SEAMLDR_PARAMS_MAX_MODULE_PAGES         496
+#define SEAMLDR_PARAMS_MAX_MODULE_PAGES_V0      496
+
+#define SEAMLDR_PARAMS_SIZE                     _4KB
+#define SEAMLDR_PARAMS_MAX_MODULE_PAGES         SEAMLDR_PARAMS_MAX_MODULE_PAGES_V0
+
 #define SEAM_MODULE_PAGE_SIZE                   _4KB
 
 typedef struct seamldr_params_s
@@ -67,7 +71,7 @@ typedef struct seamldr_params_s
     uint64_t num_module_pages;
     uint64_t mod_pages_pa_list[SEAMLDR_PARAMS_MAX_MODULE_PAGES];
 } seamldr_params_t;
-pseamldr_static_assert(sizeof(seamldr_params_t) == 4096, seamldr_params_t);
+pseamldr_static_assert(sizeof(seamldr_params_t) == SEAMLDR_PARAMS_SIZE, seamldr_params_t);
 
 typedef union attributes_s
 {
@@ -82,7 +86,16 @@ pseamldr_static_assert(sizeof(attributes_t) == 4, attributes_t);
 
 typedef struct PACKED tee_tcb_snv_s
 {
-    uint16_t current_seam_svn;
+    union
+    {
+        struct
+        {
+            uint8_t seam_minor_svn;
+            uint8_t seam_major_svn;
+        };
+        uint16_t current_seam_svn;
+    };
+
     uint8_t  last_patch_se_svn;
     uint8_t  reserved[13];
 } tee_tcb_svn_t;
@@ -122,7 +135,7 @@ typedef struct seamldr_info_s
     uint16_t     major;
     uint16_t     reserved_0;
     uint32_t     acm_x2apic;
-    uint32_t     reserved_1;
+    uint32_t     num_remaining_updates;
     seamextend_t seamextend;
     uint8_t      reserved_2[88];
 } seamldr_info_t;

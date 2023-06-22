@@ -54,7 +54,7 @@ static uint64_t map_seam_range_page(memory_constants_t* mem_consts, uint64_t pa,
             // SEAM PML4 page table
             // Stack region
             uint64_t data_region_end = mem_consts->data_region_physbase + mem_consts->data_region_size;
-            if (mem_consts->current_pt_physbase <= data_region_end)
+            if (mem_consts->current_pt_physbase < data_region_end)
             {
                 return NULL_PA;
             }

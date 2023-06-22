@@ -22,6 +22,27 @@
 typedef union {
     struct
     {
+        uint64_t  offset_low   : 16;
+        uint64_t  selector     : 16;
+        uint64_t  reserved_0   : 8;
+        uint64_t  gate_type    : 5;
+        uint64_t  dpl          : 2;
+        uint64_t  present      : 1;
+        uint64_t  offset_high  : 16;
+        uint64_t  offset_upper : 32;
+        uint64_t  reserved_1   : 32;
+    };
+    struct
+    {
+        uint64_t  raw_low;
+        uint64_t  raw_high;
+    };
+} ia32_idt_gate_descriptor;
+pseamldr_static_assert(sizeof(ia32_idt_gate_descriptor) == 16, ia32_idt_gate_descriptor);
+
+typedef union {
+    struct
+    {
         uint64_t
         pe          : 1,  //bit 0
         mp          : 1,  //bit 1

@@ -49,6 +49,15 @@ api_error_type seamldr_info(uint64_t output_buffer_pa)
 
     pseamldr_memcpy(&out_seamldr_info_la->seamextend, sizeof(seamextend_t), &seamextend, sizeof(seamextend_t));
 
+    pseamldr_data_t* pseamldr_data = get_pseamldr_data();
+
+    IF_RARE (pseamldr_data->num_remaining_updates == 0)
+    {
+        pseamldr_data->num_remaining_updates = get_num_of_remaining_updates();
+    }
+
+    out_seamldr_info_la->num_remaining_updates = pseamldr_data->num_remaining_updates;
+
     return_value = PSEAMLDR_SUCCESS;
 
 EXIT:

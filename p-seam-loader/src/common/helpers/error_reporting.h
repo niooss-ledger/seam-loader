@@ -18,9 +18,11 @@
 
 void pseamldr_report_error_and_halt(uint32_t source_id, uint32_t code);
 
+//TODO - input parameters may change
 void pseamldr_arch_fatal_error(void);
 
 //Architectural Fatal Error Macro.
+//TODO - input parameters may change
 #define FATAL_ERROR()       {\
                                 TDX_ERROR("Architectural fatal error at line: %d , in file %s\n", __LINE__, __FILENAME__);\
                                 pseamldr_arch_fatal_error();\

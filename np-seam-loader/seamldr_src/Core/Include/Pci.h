@@ -26,11 +26,10 @@
 //-----------------------------------------------------------------------------
 
 #define PCI_ADDR(bus, dev, func, reg) \
-    ((((UINT32) bus) << 16) + (((UINT32) dev) << 11) + (((UINT32) func) << 8) + ((UINT32) reg))
+  ((((UINT32) bus) << 16) + (((UINT32) dev) << 11) + (((UINT32) func) << 8) + ((UINT32) reg))
 
 #define PCIEX_ADDR(bus, dev, func, reg) \
-    ((((UINT32) bus) << 20) + (((UINT32) dev) << 15) + (((UINT32) func) << 12) + ((UINT32) reg))
-
+  ((((UINT32) bus) << 20) + (((UINT32) dev) << 15) + (((UINT32) func) << 12) + ((UINT32) reg))
 
 extern UINT32 __ReadPCIDword(UINT32 addr);
 extern void __WritePCIDword(UINT32 addr, UINT32);
@@ -58,7 +57,6 @@ extern UINT8 PcieWriteOnlyDword(UINT8 bus, UINT32 addr, UINT32 data, UINT32 mask
 
 #if TRACE_WITH_FUNCTIONS & TRACE_PCI
 
-
 extern UINT32 ReadPCIDwordTr(UINT32 addr, const char *Name, UINT32 LineNumber);
 extern void WritePCIDwordTr(UINT32 addr, UINT32, const char *Name, UINT32 LineNumber);
 extern UINT32 ReadPCIEDwordTr(UINT8 busNum, UINT32 addr, const char *Name, UINT32 LineNumber);
@@ -79,50 +77,47 @@ extern void WritePCIByteTr(UINT32 addr, UINT8, const char *Name, UINT32 LineNumb
 extern UINT8 ReadPCIEByteTr(UINT8 busNum, UINT32 addr, const char *Name, UINT32 LineNumber);
 extern void WritePCIEByteTr(UINT8 busNum, UINT32 addr, UINT8 data, const char *Name, UINT32 LineNumber);
 
+#define ReadPCIQword(A)         ReadPCIQwordTr((A), __FUNCTION__, __LINE__)
+#define ReadPCIDword(A)         ReadPCIDwordTr((A), __FUNCTION__, __LINE__)
+#define ReadPCIWord(A)          ReadPCIWordTr((A), __FUNCTION__, __LINE__)
+#define ReadPCIByte(A)          ReadPCIByteTr((A), __FUNCTION__, __LINE__)
 
-#define ReadPCIQword(A)		          ReadPCIQwordTr((A), __FUNCTION__, __LINE__)
-#define ReadPCIDword(A)		          ReadPCIDwordTr((A), __FUNCTION__, __LINE__)
-#define ReadPCIWord(A)		          ReadPCIWordTr((A), __FUNCTION__, __LINE__)
-#define ReadPCIByte(A)		          ReadPCIByteTr((A), __FUNCTION__, __LINE__)
+#define WritePCIQword(A, D)     WritePCIQwordTr((A), (D), __FUNCTION__, __LINE__)
+#define WritePCIDword(A, D)     WritePCIDwordTr((A), (D), __FUNCTION__, __LINE__)
+#define WritePCIWord(A, D)      WritePCIWordTr((A), (D), __FUNCTION__, __LINE__)
+#define WritePCIByte(A, D)      WritePCIByteTr((A), (D), __FUNCTION__, __LINE__)
 
-#define WritePCIQword(A,D)	        WritePCIQwordTr((A),(D), __FUNCTION__, __LINE__)
-#define WritePCIDword(A,D)	        WritePCIDwordTr((A),(D), __FUNCTION__, __LINE__)
-#define WritePCIWord(A,D)		        WritePCIWordTr((A),(D), __FUNCTION__, __LINE__)
-#define WritePCIByte(A,D)		        WritePCIByteTr((A),(D), __FUNCTION__, __LINE__)
+#define ReadPCIEQword(B, A)     ReadPCIEQwordTr((B), (A), __FUNCTION__, __LINE__)
+#define ReadPCIEDword(B, A)     ReadPCIEDwordTr((B), (A), __FUNCTION__, __LINE__)
+#define ReadPCIEWord(B, A)      ReadPCIEWordTr((B), (A), __FUNCTION__, __LINE__)
+#define ReadPCIEByte(B, A)      ReadPCIEByteTr((B), (A), __FUNCTION__, __LINE__)
 
-#define ReadPCIEQword(B,A)	        ReadPCIEQwordTr((B),(A), __FUNCTION__, __LINE__)
-#define ReadPCIEDword(B,A)	        ReadPCIEDwordTr((B),(A), __FUNCTION__, __LINE__)
-#define ReadPCIEWord(B,A)		        ReadPCIEWordTr((B),(A), __FUNCTION__, __LINE__)
-#define ReadPCIEByte(B,A)		        ReadPCIEByteTr((B),(A), __FUNCTION__, __LINE__)
-
-#define WritePCIEQword(B,A,D)	      WritePCIEQwordTr((A),(D), __FUNCTION__, __LINE__)
-#define WritePCIEDword(B,A,D)	      WritePCIEDwordTr((B),(A),(D), __FUNCTION__, __LINE__)
-#define WritePCIEWord(B,A,D)	      WritePCIEWordTr((B),(A),(D), __FUNCTION__, __LINE__)
-#define WritePCIEByte(B,A,D)	      WritePCIEByteTr((B),(A),(D), __FUNCTION__, __LINE__)
+#define WritePCIEQword(B, A, D) WritePCIEQwordTr((A), (D), __FUNCTION__, __LINE__)
+#define WritePCIEDword(B, A, D) WritePCIEDwordTr((B), (A), (D), __FUNCTION__, __LINE__)
+#define WritePCIEWord(B, A, D)  WritePCIEWordTr((B), (A), (D), __FUNCTION__, __LINE__)
+#define WritePCIEByte(B, A, D)  WritePCIEByteTr((B), (A), (D), __FUNCTION__, __LINE__)
 
 #else
 
+#define ReadPCIQword(A)         __ReadPCIQword((A))
+#define ReadPCIDword(A)         __ReadPCIDword((A))
+#define ReadPCIWord(A)          __ReadPCIWord((A))
+#define ReadPCIByte(A)          __ReadPCIByte((A))
 
-#define ReadPCIQword(A)       __ReadPCIQword((A))
-#define ReadPCIDword(A)       __ReadPCIDword((A))
-#define ReadPCIWord(A)        __ReadPCIWord((A))
-#define ReadPCIByte(A)        __ReadPCIByte((A))
+#define WritePCIQword(A, D)     __WritePCIQword((A), (D))
+#define WritePCIDword(A, D)     __WritePCIDword((A), (D))
+#define WritePCIWord(A, D)      __WritePCIWord((A), (D))
+#define WritePCIByte(A, D)      __WritePCIByte((A), (D))
 
-#define WritePCIQword(A,D)    __WritePCIQword((A),(D))
-#define WritePCIDword(A,D)    __WritePCIDword((A),(D))
-#define WritePCIWord(A,D)     __WritePCIWord((A),(D))
-#define WritePCIByte(A,D)     __WritePCIByte((A),(D))
+#define ReadPCIEQword(B, A)     __ReadPCIEQword((B), (A))
+#define ReadPCIEDword(B, A)     __ReadPCIEDword((B), (A))
+#define ReadPCIEWord(B, A)      __ReadPCIEWord((B), (A))
+#define ReadPCIEByte(B, A)      __ReadPCIEByte((B), (A))
 
-#define ReadPCIEQword(B,A)    __ReadPCIEQword((B),(A))
-#define ReadPCIEDword(B,A)    __ReadPCIEDword((B),(A))
-#define ReadPCIEWord(B,A)     __ReadPCIEWord((B),(A))
-#define ReadPCIEByte(B,A)     __ReadPCIEByte((B),(A))
-
-#define WritePCIEQword(B,A,D)   __WritePCIEQword((B),(A),(D))
-#define WritePCIEDword(B,A,D)   __WritePCIEDword((B),(A),(D))
-#define WritePCIEWord(B,A,D)    __WritePCIEWord((B),(A),(D))
-#define WritePCIEByte(B,A,D)    __WritePCIEByte((B),(A),(D))
-
+#define WritePCIEQword(B, A, D) __WritePCIEQword((B), (A), (D))
+#define WritePCIEDword(B, A, D) __WritePCIEDword((B), (A), (D))
+#define WritePCIEWord(B, A, D)  __WritePCIEWord((B), (A), (D))
+#define WritePCIEByte(B, A, D)  __WritePCIEByte((B), (A), (D))
 
 #endif
 #endif
@@ -131,25 +126,24 @@ extern void WritePCIEByteTr(UINT8 busNum, UINT32 addr, UINT8 data, const char *N
 
 typedef union {
   struct {
-    UINT32 reg:8;
-    UINT32 func:3;
-    UINT32 dev:5;
-    UINT32 bus:8;
-    UINT32 res:8;
+    UINT32 reg  : 8;
+    UINT32 func : 3;
+    UINT32 dev  : 5;
+    UINT32 bus  : 8;
+    UINT32 res  : 8;
   } bits;
-	UINT32 addr;
+  UINT32 addr;
 } PciAddr;
-
 
 typedef union {
   struct {
-    UINT32 reg:12;
-    UINT32 func:3;
-    UINT32 dev:5;
-    UINT32 bus:8;
-    UINT32 res:4;
+    UINT32 reg  : 12;
+    UINT32 func : 3;
+    UINT32 dev  : 5;
+    UINT32 bus  : 8;
+    UINT32 res  : 4;
   } bits;
-	UINT32 addr;
+  UINT32 addr;
 } PcieAddr;
 
 #endif

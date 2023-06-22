@@ -24,6 +24,13 @@
 #include "memory_handlers/seam_memory_map.h"
 #include "data_structures/seam_vmcs_setup.h"
 #include "crypto/intel_key_hash.h"
+#include "helpers/elf.h"
+
+static uint64_t required_seam_module_code_region_size(seamldr_params_t* seamldr_params)
+{
+    UNUSED(seamldr_params);
+    return SEAMRR_MODULE_CODE_REGION_SIZE;
+}
 
 static bool_t check_seam_sigstruct(seam_sigstruct_t* seam_sigstruct)
 {
@@ -36,7 +43,9 @@ static bool_t check_seam_sigstruct(seam_sigstruct_t* seam_sigstruct)
     // - All fields marked as "must be" have the specified values/sizes
 
     IF_RARE (!pseamldr_memcmp_to_zero(seam_sigstruct->reserved0, sizeof(seam_sigstruct->reserved0)) ||
-             !pseamldr_memcmp_to_zero(seam_sigstruct->reserved1, sizeof(seam_sigstruct->reserved1))
+             !pseamldr_memcmp_to_zero(seam_sigstruct->reserved1, sizeof(seam_sigstruct->reserved1)) ||
+             !pseamldr_memcmp_to_zero(seam_sigstruct->reserved2, sizeof(seam_sigstruct->reserved2)) ||
+             !pseamldr_memcmp_to_zero(seam_sigstruct->reserved3, sizeof(seam_sigstruct->reserved3))
             )
     {
         TDX_ERROR("SEAM sigstruct reserved fields are not zero\n");
@@ -47,7 +56,7 @@ static bool_t check_seam_sigstruct(seam_sigstruct_t* seam_sigstruct)
              seam_sigstruct->header_length != SEAM_SIGSTRUCT_HEADER_LENGTH_DWORDS ||
              seam_sigstruct->header_version != SEAM_SIGSTRUCT_HEADER_VERSION)
     {
-        TDX_ERROR("SEAM sigstruct header = 0x%lx or header len = 0x%l  or version = 0x%lx are unsupported\n",
+        TDX_ERROR("SEAM sigstruct header = 0x%lx or header len = 0x%lx or version = 0x%lx are unsupported\n",
                 seam_sigstruct->header_type, seam_sigstruct->header_length, seam_sigstruct->header_version);
         return false;
     }
@@ -85,6 +94,27 @@ static bool_t check_seam_sigstruct(seam_sigstruct_t* seam_sigstruct)
     IF_RARE (seam_sigstruct->exponent != SEAM_SIGSTRUCT_RSA_EXPONENT)
     {
         TDX_ERROR("SEAM sigstruct RSA exponent = 0x%lx is unsupported\n", seam_sigstruct->exponent);
+        return false;
+    }
+
+    IF_RARE (seam_sigstruct->min_update_hv > seam_sigstruct->module_hv)
+    {
+        TDX_ERROR("Min update HV %d is larger than module HV %d\n",
+                seam_sigstruct->min_update_hv, seam_sigstruct->module_hv);
+        return false;
+    }
+
+    IF_RARE (seam_sigstruct->gdt_idt_offset % _4KB)
+    {
+        TDX_ERROR("GDT-IDT table offset is not 4KB aligned - 0x%llx\n", seam_sigstruct->gdt_idt_offset);
+        return false;
+    }
+
+    IF_RARE (((seam_sigstruct->gdt_idt_offset == 0) && (seam_sigstruct->fault_wrapper_offset != 0)) ||
+             ((seam_sigstruct->gdt_idt_offset != 0) && (seam_sigstruct->fault_wrapper_offset == 0)))
+    {
+        TDX_ERROR("GDT-IDT table offset is 0x%llx, while fault wrapper offset is 0x%llx\n",
+                seam_sigstruct->gdt_idt_offset, seam_sigstruct->fault_wrapper_offset);
         return false;
     }
 
@@ -172,6 +202,8 @@ static api_error_type verify_manifest(pseamldr_data_t* pseamldr_data, seamldr_pa
         return PSEAMLDR_EBADSIG;
     }
 
+    lfence();
+
     // Compute the SHA-384 hash of the SEAM module signers key (TMP_SIGSTRUCT.MODULUS).
     // If the result is not equal to the INTEL_SIGNER_KEY_HASH constant, then set ERROR_CODE = EBADSIG
     IF_RARE (!compute_and_verify_hash(seam_sigstruct->modulus, SIGSTRUCT_MODULUS_SIZE, intel_key_hash))
@@ -194,13 +226,48 @@ static api_error_type verify_manifest(pseamldr_data_t* pseamldr_data, seamldr_pa
         }
     }
 
-    // If the scenario is UPDATE (i.e. TMP_PARAMS.SCENARIO == 1) but the new module has
-    // smaller SEAM SVN than the SEAM SVN of the currently loaded module
-    // (i.e. TMP_SIGSTRUCT.SEAMSVN < TMP_UDPATE_SEAMEXTEND.TEE_TCB_INFO.SEAMSVN), then return EBADPARAM
-    IF_RARE ((seamldr_params->scenario == SEAMLDR_SCENARIO_UPDATE) &&
-             (seam_sigstruct->seamsvn < pseamldr_data->seamextend_snapshot.tee_tcb_svn.current_seam_svn))
+    uint8_t new_module_svn = seam_sigstruct->seamsvn.seam_minor_svn;
+    uint8_t new_module_version = seam_sigstruct->seamsvn.seam_major_svn;
+
+    // If the requested scenario is UPDATE (i.e. TMP_PARAMS.SCENARIO == 1), do:
+    if (seamldr_params->scenario == SEAMLDR_SCENARIO_UPDATE)
     {
-        TDX_ERROR("New module has smaller SEAM SVN than of the current module\n");
+        uint8_t current_module_svn = pseamldr_data->seamextend_snapshot.tee_tcb_svn.seam_minor_svn;
+        uint8_t current_module_version = pseamldr_data->seamextend_snapshot.tee_tcb_svn.seam_major_svn;
+
+        // If the modules are of different TDX versions (i.e if TMP_CURRENT_VERSION != TMP_MODULE_VERSION)
+        // then set ERROR_CODE = EBADCALL and go to "Update End".
+        IF_RARE (new_module_version != current_module_version)
+        {
+            TDX_ERROR("Different module major versions - %d and %d\n", current_module_version, new_module_version);
+            return PSEAMLDR_EBADCALL;
+        }
+
+        // If the new module has smaller minor SEAM SVN than the minor SEAM SVN of the currently loaded module
+        // (i.e. TMP_MINOR_SVN < TMP_CURRENT_SVN), then set ERROR_CODE = EBADSIG and go to "Update End".
+        IF_RARE (new_module_svn < current_module_svn)
+        {
+            TDX_ERROR("New module has smaller SEAM SVN than of the current module\n");
+            return PSEAMLDR_EBADSIG;
+        }
+    }
+
+    // Check GDT/IDT table and fault-wrapper table to be within the module size
+    uint32_t module_size = (uint32_t)(seamldr_params->num_module_pages * SEAM_MODULE_PAGE_SIZE);
+    IF_RARE (seam_sigstruct->gdt_idt_offset &&
+             (seam_sigstruct->gdt_idt_offset > (module_size - _4KB)))
+    {
+        TDX_ERROR("GDT IDT offset 0x%lx doesn't fix the image size 0x%lx\n",
+                  seam_sigstruct->gdt_idt_offset, module_size);
+        return PSEAMLDR_EBADSIG;
+    }
+
+    uint32_t exception_table_size = NUM_OF_EXCEPTION_VECTORS * SEAM_MODULE_EXCEPTION_HANDLER_SIZE;
+    IF_RARE (seam_sigstruct->fault_wrapper_offset &&
+             (seam_sigstruct->fault_wrapper_offset > (module_size - exception_table_size)))
+    {
+        TDX_ERROR("Fault wrepper offset 0x%lx doesn't fix the image size 0x%lx\n",
+                  seam_sigstruct->fault_wrapper_offset, module_size);
         return PSEAMLDR_EBADSIG;
     }
 
@@ -210,6 +277,15 @@ static api_error_type verify_manifest(pseamldr_data_t* pseamldr_data, seamldr_pa
     {
         TDX_ERROR("CPUID list is unsupported\n");
         return PSEAMLDR_EUNSUPCPU;
+    }
+
+    // If the new module is declared as production-signed (i.e TMP_SIGSTRUCT.MODULE_TYPE[31] == 0)
+    // and is not restricted to a limited set of CPUs (i.e TMP_SIGSTRUCT.CPUID_TABLE_SIZE == 0),
+    // then set ERROR_CODE = EBADSIG.
+    IF_RARE (!seam_sigstruct->module_type.is_debug_signed && !seam_sigstruct->cpuid_table_size)
+    {
+        TDX_ERROR("Production module doesn't have CPUID list\n");
+        return PSEAMLDR_EBADSIG;
     }
 
     IF_RARE (!verify_seam_sigstruct_signature(seam_sigstruct))
@@ -231,7 +307,7 @@ static api_error_type check_seamldr_params(pseamldr_data_t* pseamldr_data, seaml
 
     IF_RARE (seamldr_params->version != 0)
     {
-        TDX_ERROR("Seamldr params version field is not zero\n");
+        TDX_ERROR("Seamldr params version field is incorrect\n");
         return PSEAMLDR_EBADPARAM;
     }
     
@@ -248,12 +324,16 @@ static api_error_type check_seamldr_params(pseamldr_data_t* pseamldr_data, seaml
         return PSEAMLDR_EBADPARAM;
     }
 
-    IF_RARE (seamldr_params->num_module_pages > SEAMLDR_PARAMS_MAX_MODULE_PAGES)
+    uint64_t max_module_pages = SEAMLDR_PARAMS_MAX_MODULE_PAGES_V0;
+
+    IF_RARE (seamldr_params->num_module_pages > max_module_pages)
     {
         TDX_ERROR("Seamldr params num of module pages - %d, exceed maximum - %d\n",
-                seamldr_params->num_module_pages, SEAMLDR_PARAMS_MAX_MODULE_PAGES);
+                seamldr_params->num_module_pages, max_module_pages);
         return PSEAMLDR_EBADPARAM;
     }
+
+    lfence();
 
     for (uint32_t i = 0; i < seamldr_params->num_module_pages; i++)
     {
@@ -301,6 +381,16 @@ static api_error_type initialize_memory_constants(pseamldr_data_t* pseamldr_data
 
     aslr_mask = (rdrand & ASLR_BIT_MASK) << 32;
 
+    // If TMP_MODULE_VERSION == 0 (i.e doesn't support TD Preserving) then set TMP_TD_PRESERVE_SUPPORTED = 0, else 1
+    if (seam_sigstruct->seamsvn.seam_major_svn == TDX_MODULE_1_0_MAJOR_SVN)
+    {
+        mem_consts->td_preserving_supported = false;
+    }
+    else
+    {
+        mem_consts->td_preserving_supported = true;
+    }
+
     // Set C_NUM_ADDR_LP = num_addr_lp_per_skt * P_SYS_INFO_TABLE.TOT_NUM_SOCKETS
     mem_consts->num_addressable_lps = get_num_addressable_lps_on_socket() *
                                                          p_sysinfo_table->tot_num_sockets;
@@ -317,13 +407,26 @@ static api_error_type initialize_memory_constants(pseamldr_data_t* pseamldr_data
     // Code region:
     mem_consts->code_region_size = seamldr_params->num_module_pages * _4KB;
     mem_consts->code_region_linbase = LINEAR_BASE_CODE_REGION | aslr_mask;
-    mem_consts->code_region_physbase = mem_consts->module_physlimit - _2MB;
+    mem_consts->code_region_physbase = mem_consts->module_physlimit -
+                                       required_seam_module_code_region_size(seamldr_params);
 
     // Data region:
     mem_consts->local_data_size = (seam_sigstruct->num_tls_pages + 1) * _4KB;
     mem_consts->global_data_size = (seam_sigstruct->num_global_data_pages + 1) * _4KB;
     mem_consts->data_region_size = (mem_consts->local_data_size * mem_consts->num_addressable_lps) +
                                     mem_consts->global_data_size;
+
+    if (mem_consts->td_preserving_supported)
+    {
+        mem_consts->handoff_data_size = (seam_sigstruct->num_handoff_pages + 1) * _4KB;
+    }
+    else
+    {
+        mem_consts->handoff_data_size = 0;
+    }
+
+    mem_consts->data_region_size += mem_consts->handoff_data_size;
+
     mem_consts->data_region_linbase = LINEAR_BASE_DATA_REGION | aslr_mask;
     mem_consts->data_region_physbase = pseamldr_data->system_info.seamrr_base +
                                        _4KB + mem_consts->vmcs_region_size; // Physical SYSINFO table and VMCS's
@@ -356,6 +459,19 @@ static api_error_type initialize_memory_constants(pseamldr_data_t* pseamldr_data
             1 // One PML4 page table
             );
 
+    // GDT/IDT setup:
+    if ((seam_sigstruct->gdt_idt_offset != 0) && (seam_sigstruct->fault_wrapper_offset != 0))
+    {
+        mem_consts->idt_linbase = mem_consts->code_region_linbase + seam_sigstruct->gdt_idt_offset;
+        mem_consts->gdt_linbase = mem_consts->idt_linbase + _2KB;
+        mem_consts->fault_wrapper_linbase = mem_consts->code_region_linbase + seam_sigstruct->fault_wrapper_offset;
+    }
+    else
+    {
+        mem_consts->idt_linbase = 0;
+        mem_consts->gdt_linbase = 0;
+    }
+
     // If the size of the SEAM range part dedicated to SEAM module (i.e. C_MODULE_PHYSLIMIT – SEAMRR.BASE)
     // is smaller than the minimum size required to load and map the new SEAM module
     // and prepare to execution, then set ERROR_CODE = ENOMEM
@@ -365,7 +481,7 @@ static api_error_type initialize_memory_constants(pseamldr_data_t* pseamldr_data
                                  mem_consts->stack_region_size +
                                  mem_consts->data_region_size +
                                  mem_consts->paging_structure_size +
-                                 SEAMRR_MODULE_CODE_REGION_SIZE;
+                                 required_seam_module_code_region_size(seamldr_params);
 
     IF_RARE ((mem_consts->module_physlimit - pseamldr_data->system_info.seamrr_base) < min_required_size)
     {
@@ -379,18 +495,21 @@ static api_error_type initialize_memory_constants(pseamldr_data_t* pseamldr_data
 }
 
 static api_error_type seam_module_load_and_verify(pseamldr_data_t* pseamldr_data, p_sysinfo_table_t* p_sysinfo_table,
-                                                  seamldr_params_t* seamldr_params, seam_sigstruct_t* seam_sigstruct)
+                                                  seamldr_params_t* seamldr_params, seam_sigstruct_t* seam_sigstruct,
+                                                  memory_constants_t* mem_consts)
 {
     uint64_t code_region_start_la;
 
     code_region_start_la = p_sysinfo_table->module_region_base + pseamldr_data->system_info.seamrr_size
-                           - p_sysinfo_table->p_seamldr_range_size - SEAMRR_MODULE_CODE_REGION_SIZE;
+                           - p_sysinfo_table->p_seamldr_range_size
+                           - required_seam_module_code_region_size(seamldr_params);
 
     // Copy and measure SEAM module image pages to the last 2M of the SEAM range
     for (uint64_t i = 0; i < seamldr_params->num_module_pages; i++)
     {
         void* src_page_la = map_pa((void*)seamldr_params->mod_pages_pa_list[i], TDX_RANGE_RO);
         void* dst_page_la = (void*)(code_region_start_la + (i * SEAM_MODULE_PAGE_SIZE));
+
         pseamldr_memcpy(dst_page_la, SEAM_MODULE_PAGE_SIZE, src_page_la, SEAM_MODULE_PAGE_SIZE);
         free_la(src_page_la);
     }
@@ -404,10 +523,35 @@ static api_error_type seam_module_load_and_verify(pseamldr_data_t* pseamldr_data
         return PSEAMLDR_EBADHASH;
     }
 
+    // Perform ELF relocation on loaded SEAM module
+    IF_RARE (!relocate_elf_image(code_region_start_la, module_size, mem_consts->code_region_linbase))
+    {
+        TDX_ERROR("Seam module image relocation failed\n");
+        return PSEAMLDR_EBADPARAM;
+    }
+
+    // Fix-up the IDT entries with addresses of the exception wrappers:
+    if (seam_sigstruct->gdt_idt_offset != 0)
+    {
+        for (uint16_t vector = 0; vector < NUM_OF_EXCEPTION_VECTORS; vector++)
+        {
+            uint64_t exception_handler_linaddr = mem_consts->fault_wrapper_linbase +
+                                    (vector * SEAM_MODULE_EXCEPTION_HANDLER_SIZE);
+            uint64_t idt_entry_la = code_region_start_la + seam_sigstruct->gdt_idt_offset +
+                                    (vector * sizeof(ia32_idt_gate_descriptor));
+
+            ia32_idt_gate_descriptor* idt_entry_p = (ia32_idt_gate_descriptor*)idt_entry_la;
+            idt_entry_p->offset_low   = exception_handler_linaddr & BIT_MASK_16BITS;
+            idt_entry_p->offset_high  = (exception_handler_linaddr >> 16) & BIT_MASK_16BITS;
+            idt_entry_p->offset_upper = (exception_handler_linaddr >> 32) & BIT_MASK_32BITS;
+        }
+    }
+
     return PSEAMLDR_SUCCESS;
 }
 
-static void setup_system_information(p_sysinfo_table_t* p_sysinfo_table, memory_constants_t* mem_consts)
+static void setup_system_information(pseamldr_data_t* pseamldr_data, p_sysinfo_table_t* p_sysinfo_table,
+                                     memory_constants_t* mem_consts)
 {
     // Copy MCHECK information from P_SYS_INFO_TABLE to SYS_INFO_TABLE
     sysinfo_table_t* sysinfo_table = (sysinfo_table_t*)p_sysinfo_table->module_region_base;
@@ -426,12 +570,55 @@ static void setup_system_information(p_sysinfo_table_t* p_sysinfo_table, memory_
     sysinfo_table->keyhole_edit_rgn_size = mem_consts->keyedit_region_size;
     sysinfo_table->num_stack_pages = (mem_consts->data_stack_size / _4KB) - 1;
     sysinfo_table->num_tls_pages = (mem_consts->local_data_size / _4KB) - 1;
+
+    UNUSED(pseamldr_data);
+}
+
+static api_error_type init_seam_range_on_update(pseamldr_data_t* pseamldr_data, p_sysinfo_table_t* p_sysinfo_table,
+                                                memory_constants_t* mem_consts)
+{
+    if (pseamldr_data->num_remaining_updates == 0)
+    {
+        TDX_ERROR("P-SEAMLDR ran out of available updates!\n");
+        return PSEAMLDR_EBADCALL;
+    }
+
+    sysinfo_table_t* sysinfo_table = (sysinfo_table_t*)p_sysinfo_table->module_region_base;
+
+    // Let HANDOFF_DATA = first 8 bytes at physical address C_DATA_REGION_PHYSBASE
+    uint64_t data_region_start_la = p_sysinfo_table->module_region_base +
+                                      (mem_consts->data_region_physbase - pseamldr_data->system_info.seamrr_base);
+
+    handoff_data_header_t* handoff_data = (handoff_data_header_t*)data_region_start_la;
+    uint64_t handoff_size = handoff_data->size + sizeof(handoff_data_header_t);
+
+    if (!handoff_data->valid ||
+        (handoff_size > ((sysinfo_table->num_handoff_pages + 1) * _4KB)) ||
+        (handoff_data->hv < pseamldr_data->seam_sigstruct_snapshot.min_update_hv) ||
+        (handoff_data->hv > pseamldr_data->seam_sigstruct_snapshot.module_hv))
+    {
+        TDX_ERROR("Bad handoff data! 0x%llx\n", *((uint64_t*)handoff_data));
+        return PSEAMLDR_EBADHANDOFF;
+    }
+
+    // Clear the entire module range (using regular REP-STOSB), except handoff data area
+    // Using MOVDIR64B is not required here since the area was already initialized
+    uint64_t bytes_before_handoff = (uint64_t)handoff_data - (uint64_t)p_sysinfo_table->module_region_base;
+    basic_memset_to_zero((void*)p_sysinfo_table->module_region_base, bytes_before_handoff);
+
+    uint64_t module_range_size = mem_consts->module_physlimit - pseamldr_data->system_info.seamrr_base;
+    uint64_t bytes_after_handoff = module_range_size - bytes_before_handoff - handoff_size;
+    uint64_t range_after_handoff = p_sysinfo_table->module_region_base + bytes_before_handoff + handoff_size;
+
+    basic_memset_to_zero((void*)range_after_handoff, bytes_after_handoff);
+
+    return PSEAMLDR_SUCCESS;
 }
 
 _STATIC_INLINE_ void fill_seamextend_structure(seamextend_t* seamextend, seam_sigstruct_t* sigstruct,
                                                bool_t seam_ready)
 {
-    seamextend->tee_tcb_svn.current_seam_svn = sigstruct->seamsvn;
+    seamextend->tee_tcb_svn.current_seam_svn = sigstruct->seamsvn.raw;
     pseamldr_memcpy(seamextend->mrseam, sizeof(seamextend->mrseam), sigstruct->seamhash, sizeof(sigstruct->seamhash));
     basic_memset_to_zero(seamextend->mrsigner, sizeof(seamextend->mrsigner));
     seamextend->attributes = 0;
@@ -450,12 +637,55 @@ _STATIC_INLINE_ void zero_seamextend_structure(seamextend_t* seamextend)
 }
 
 static api_error_type install_epilogue(api_error_type flow_status, uint64_t rec_status,
-                                       pseamldr_data_t* pseamldr_data)
+                                       pseamldr_data_t* pseamldr_data, p_sysinfo_table_t* p_sysinfo_table)
 {
     IF_COMMON (flow_status == PSEAMLDR_SUCCESS)
     {
-        fill_seamextend_structure(&pseamldr_data->seamextend_snapshot,
-                                  &pseamldr_data->seam_sigstruct_snapshot, true);
+        ALIGN(256) seamextend_t seamextend_copy;
+
+        pseamldr_memcpy(&seamextend_copy, sizeof(seamextend_copy),
+                        &pseamldr_data->seamextend_snapshot, sizeof(pseamldr_data->seamextend_snapshot));
+
+        fill_seamextend_structure(&seamextend_copy, &pseamldr_data->seam_sigstruct_snapshot, false);
+
+        seamextend_write(&seamextend_copy);
+
+        uint64_t result = SEAMOPS_ENTROPY_ERROR;
+
+        for (uint32_t i = 0; i < MAX_NUMBER_OF_SEAMDB_INSERT_RETRIES; i++)
+        {
+            TDX_LOG("Attempt number %d to do SEAMBD_INSERT\n", i);
+            result = ia32_seamops_seamdb_insert();
+
+            if (result != SEAMOPS_SUCCESS)
+            {
+                TDX_WARN("SEAMBD_INSERT attempt %d failed! 0x%llx\n", i, result);
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        IF_RARE (result != SEAMOPS_SUCCESS)
+        {
+            TDX_ERROR("Not enough entropy to insert new SEAMDB entry\n");
+            return PSEAMLDR_ENOENTROPY;
+        }
+        else // SEAMDB is updated
+        {
+            seamextend_copy.seam_ready = 1;
+            seamextend_write(&seamextend_copy);
+
+            sysinfo_table_t* sysinfo_table = (sysinfo_table_t*)p_sysinfo_table->module_region_base;
+
+            sysinfo_table->module_hv     = pseamldr_data->seam_sigstruct_snapshot.module_hv;
+            sysinfo_table->min_update_hv = pseamldr_data->seam_sigstruct_snapshot.min_update_hv;
+            sysinfo_table->no_downgrade  = pseamldr_data->seam_sigstruct_snapshot.no_downgrade;
+            sysinfo_table->num_handoff_pages = pseamldr_data->seam_sigstruct_snapshot.num_handoff_pages;
+
+            pseamldr_data->num_remaining_updates--;
+        }
     }
     else
     {
@@ -463,9 +693,9 @@ static api_error_type install_epilogue(api_error_type flow_status, uint64_t rec_
         {
             zero_seamextend_structure(&pseamldr_data->seamextend_snapshot);
         }
-    }
 
-    seamextend_write(&pseamldr_data->seamextend_snapshot);
+        seamextend_write(&pseamldr_data->seamextend_snapshot);
+    }
 
     return flow_status;
 }
@@ -547,7 +777,8 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
 
     // ************************ Input checks ************************
     // Check SEAMLDR PARAMS input PA
-    return_value = check_and_map_aligned_shared_hpa((pa_t)seamldr_params_pa, _4KB, TDX_RANGE_RO, (void**)&seamldr_params_la);
+    return_value = check_and_map_aligned_shared_hpa((pa_t)seamldr_params_pa, SEAMLDR_PARAMS_SIZE,
+                                                    TDX_RANGE_RO, (void**)&seamldr_params_la);
     IF_RARE (return_value != PSEAMLDR_SUCCESS)
     {
         TDX_ERROR("Seamldr Params PA is not a valid/aligned shared HPA pa=0x%llx\n", seamldr_params_pa);
@@ -583,10 +814,26 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
         goto UPDATE_END;
     }
 
-    // Clear the entire SEAM range, except the P-SEAMLDR sub-range using MOVDIR64 instruction.
-    // from SEAMRR.BASE to C_MODULE_PHYSLIMIT – 1
-    zero_area_cacheline((void*)p_sysinfo_table->module_region_base,
-            mem_consts.module_physlimit - pseamldr_data->system_info.seamrr_base);
+    if ((seamldr_params.scenario == SEAMLDR_SCENARIO_LOAD) || !mem_consts.td_preserving_supported)
+    {
+        ia32_seamops_seamdb_clear();
+        pseamldr_data->num_remaining_updates = get_num_of_remaining_updates();
+        // Clear the entire module range
+        zero_area_cacheline((void*)p_sysinfo_table->module_region_base,
+                mem_consts.module_physlimit - pseamldr_data->system_info.seamrr_base);
+    }
+    else
+    {
+        return_value = init_seam_range_on_update(pseamldr_data, p_sysinfo_table, &mem_consts);
+        IF_RARE (return_value != PSEAMLDR_SUCCESS)
+        {
+            TDX_ERROR("Couldn't init SEAM range on update\n");
+            goto UPDATE_END;
+        }
+    }
+    // Serialize the instruction flow to prevent speculation around conditioned
+    // zero_area_cacheline above
+    movdir64b_serialize();
 
     // Remember that the module range was initialized once
     pseamldr_data->module_range_initialized = true;
@@ -603,7 +850,7 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
 
     // Image load and verify
     return_value = seam_module_load_and_verify(pseamldr_data, p_sysinfo_table,
-                             &seamldr_params, &pseamldr_data->seam_sigstruct_snapshot);
+                             &seamldr_params, &pseamldr_data->seam_sigstruct_snapshot, &mem_consts);
     IF_RARE (return_value != PSEAMLDR_SUCCESS)
     {
         TDX_ERROR("Seam module load and verification failed\n");
@@ -611,7 +858,7 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
     }
 
     // System information setup
-    setup_system_information(p_sysinfo_table, &mem_consts);
+    setup_system_information(pseamldr_data, p_sysinfo_table, &mem_consts);
 
     // SEAM VMCS setup
     setup_seam_vmcs(p_sysinfo_table->module_region_base + _4KB, &mem_consts, pseamldr_data->seam_sigstruct_snapshot.rip_offset);
@@ -621,7 +868,7 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
 
 UPDATE_END:
 
-    return_value = install_epilogue(return_value, rec_status, pseamldr_data);
+    return_value = install_epilogue(return_value, rec_status, pseamldr_data, p_sysinfo_table);
 
     basic_memset_to_zero(pseamldr_data->update_bitmap, sizeof(pseamldr_data->update_bitmap));
     pseamldr_data->lps_in_update = 0;

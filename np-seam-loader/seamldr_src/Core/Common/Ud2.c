@@ -15,22 +15,19 @@
 //**********************************************************************;
 
 /**
-  Microsoft Visual Studio 7.1 Function Prototypes for I/O Intrinsics.
-**/
+ * Microsoft Visual Studio 7.1 Function Prototypes for I/O Intrinsics.
+ **/
 #include "common.h"
 void
-__ud2 (
-  void
-  );
+__ud2(void);
 #pragma intrinsic(__ud2)
 
 /**
-  Generates an undefined instruction.
-**/
+ * Generates an undefined instruction.
+ **/
 void
-_ud2 (
-  void
-  )
+_ud2(void
+     )
 {
-  __ud2 ();
+  __ud2();
 }

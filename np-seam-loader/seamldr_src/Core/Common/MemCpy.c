@@ -26,12 +26,14 @@ void *memcpy(void *to, const void *from, UINT32 len)
   char *s = (char *)from;
 
   while (len / 4) {
-    *(UINT32 *) d = * (UINT32 *) s;
+    *(UINT32 *) d = *(UINT32 *) s;
     d += 4;
     s += 4;
     len -= 4;
-  };
-  while (len--)
+  }
+  ;
+  while (len--) {
     *d++ = *s++;
+  }
   return to;
 }

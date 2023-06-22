@@ -98,6 +98,26 @@ typedef union
 } pending_debug_exception_t;
 pseamldr_static_assert(sizeof(pending_debug_exception_t) == 8, pending_debug_exception_t);
 
+typedef union vm_vmexit_exit_reason_s {
+    struct
+    {
+        uint64_t basic_reason         : 16; // Bits 0-15
+        uint64_t reserved_0           : 10; // Bits 16-25
+        uint64_t bus_lock_preempted   : 1;  // Bit  26
+        uint64_t enclave_interruption : 1;  // Bit  27
+        uint64_t pending_mtf          : 1;  // Bit  28
+        uint64_t parallel             : 1;  // Bit  29
+        uint64_t reserved_1           : 1;  // Bit  30
+        uint64_t vmenter_fail         : 1;  // Bit  31
+        uint64_t reserved_2           : 32; // Bits 32-63
+    };
+
+    uint64_t raw;
+} vm_vmexit_exit_reason_t;
+pseamldr_static_assert(sizeof(vm_vmexit_exit_reason_t) == 8, vm_vmexit_exit_reason_t);
+
+#define VMEXIT_REASON_SEAMCALL                   76
+
 #define IA32_VMX_BASIC_MSR_ADDR               0x480
 #define IA32_VMX_PINBASED_CTLS_MSR_ADDR       0x481
 #define IA32_VMX_PROCBASED_CTLS_MSR_ADDR      0x482
@@ -133,6 +153,8 @@ pseamldr_static_assert(sizeof(pending_debug_exception_t) == 8, pending_debug_exc
 #define VMX_HOST_CR0_OFFSET  0x0328 //8
 #define VMX_HOST_CR3_OFFSET  0x0330 //8
 #define VMX_HOST_CR4_OFFSET  0x0338 //8
+#define VMX_HOST_IDTR_BASE_OFFSET  0x0340 //8
+#define VMX_HOST_GDTR_BASE_OFFSET  0x0348 //8
 #define VMX_HOST_FS_BASE_OFFSET  0x0350 //8
 #define VMX_HOST_GS_BASE_OFFSET  0x0358 //8
 #define VMX_HOST_IA32_S_CET_OFFSET  0x0458 //8
@@ -146,6 +168,8 @@ pseamldr_static_assert(sizeof(pending_debug_exception_t) == 8, pending_debug_exc
 #define wr_host_cr0( VMCS_P, VAL )  Wr_64B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_CR0_OFFSET)
 #define wr_gost_cr3( VMCS_P, VAL )  Wr_64B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_CR3_OFFSET)
 #define wr_host_cr4( VMCS_P, VAL )  Wr_64B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_CR4_OFFSET)
+#define wr_host_idtr_base( VMCS_P, VAL ) Wr_64B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_IDTR_BASE_OFFSET)
+#define wr_host_gdtr_base( VMCS_P, VAL ) Wr_64B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_GDTR_BASE_OFFSET)
 #define wr_host_cs_selector( VMCS_P, VAL )  Wr_16B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_CS_SELECTOR_OFFSET)
 #define wr_host_ss_selector( VMCS_P, VAL )  Wr_16B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_SS_SELECTOR_OFFSET)
 #define wr_host_fs_selector( VMCS_P, VAL )  Wr_16B_at_VMCS_Offset(VMCS_P, VAL, VMX_HOST_FS_SELECTOR_OFFSET)
@@ -167,6 +191,7 @@ pseamldr_static_assert(sizeof(pending_debug_exception_t) == 8, pending_debug_exc
 
 #define VMX_GUEST_RIP_ENCODE                    0x681EULL
 #define VMX_GUEST_INTERRUPTIBILITY_ENCODE  0x4824ULL
+#define VMX_VM_EXIT_REASON_ENCODE  0x4402ULL
 #define VMX_VM_EXIT_INSTRUCTION_LENGTH_ENCODE   0x440CULL
 #define VMX_GUEST_RFLAGS_ENCODE  0x6820ULL
 #define VMX_GUEST_PND_DEBUG_EXCEPTION_ENCODE  0x6822ULL

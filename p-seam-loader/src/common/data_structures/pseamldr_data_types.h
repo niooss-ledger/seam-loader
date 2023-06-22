@@ -118,7 +118,12 @@ typedef struct PACKED sysinfo_table_s
     uint64_t keyhole_edit_rgn_size; /**< Size of Keyhole Edit Region in bytes */
     uint64_t num_stack_pages;       /**< Data Stack size per thread unit=(# 4K pages) – 1 */
     uint64_t num_tls_pages;         /**< TLS size per thread - unit=(# 4K pages) – 1 */
-    uint8_t reserved_1[1944];       /**< Reserved */
+    uint16_t module_hv;             /**< The native handoff version that this TDX module should support */
+    uint16_t min_update_hv;         /**< The minimum handoff version that this TDX module should support */
+    bool_t   no_downgrade;          /**< A boolean flag that indicates whether this TDX module should disallow downgrades */
+    uint8_t  reserved_1[1];         /**< Reserved */
+    uint16_t num_handoff_pages;     /**< The number of 4KB pages (minus 1) allocated at the beginning of the data region for handoff data. */
+    uint8_t  reserved_2[1936];
 
 } sysinfo_table_t;
 pseamldr_static_assert(sizeof(sysinfo_table_t) == PAGE_SIZE_IN_BYTES, sysinfo_table_t);
@@ -148,6 +153,9 @@ pseamldr_static_assert(sizeof(sysinfo_table_t) == PAGE_SIZE_IN_BYTES, sysinfo_ta
 
 #define SEAM_MODULE_PAGE_LEVEL         4
 
+#define NUM_OF_EXCEPTION_VECTORS              32
+#define SEAM_MODULE_EXCEPTION_HANDLER_SIZE    16
+
 typedef struct memory_constants_s
 {
     uint64_t module_physlimit;
@@ -176,6 +184,11 @@ typedef struct memory_constants_s
     uint64_t pml4_physbase;
     uint64_t current_pt_physbase;
     uint64_t num_addressable_lps;
+    uint64_t handoff_data_size;
+    uint64_t idt_linbase;
+    uint64_t gdt_linbase;
+    uint64_t fault_wrapper_linbase;
+    bool_t   td_preserving_supported;
 } memory_constants_t;
 
 #endif /* SRC_COMMON_DATA_STRUCTURES_PSEAMLDR_DATA_TYPES_H_ */

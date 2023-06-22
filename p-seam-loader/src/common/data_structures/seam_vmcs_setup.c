@@ -70,9 +70,14 @@ void setup_seam_vmcs(uint64_t vmcs_la_base, memory_constants_t* mem_consts, uint
     wr_host_rip(vmcs_la_base, mem_consts->code_region_linbase + rip_offset);
     wr_host_fs_base(vmcs_la_base, mem_consts->sysinfo_table_linbase);
 
+    wr_host_idtr_base(vmcs_la_base, mem_consts->idt_linbase);
+    wr_host_gdtr_base(vmcs_la_base, mem_consts->gdt_linbase);
+
     uint64_t host_rsp_first_lp = mem_consts->stack_region_linbase + mem_consts->data_stack_size - 8;
     uint64_t host_ssp_first_lp = mem_consts->stack_region_linbase + mem_consts->lp_stack_size - 8;
     uint64_t host_gsbase_first_lp = mem_consts->data_region_linbase;
+
+    host_gsbase_first_lp += mem_consts->handoff_data_size;
 
     wr_host_rsp(vmcs_la_base, host_rsp_first_lp);
     wr_host_ssp(vmcs_la_base, host_ssp_first_lp);

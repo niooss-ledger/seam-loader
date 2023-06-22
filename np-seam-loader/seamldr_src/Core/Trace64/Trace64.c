@@ -46,4 +46,5 @@ void printHex(UINT64 num)
 
     ComSerialOut(buffer);
 }
+
 #endif

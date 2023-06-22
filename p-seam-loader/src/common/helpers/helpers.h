@@ -340,4 +340,12 @@ uint64_t get_num_addressable_lps_on_socket(void);
  */
 void ia32_safe_cpuid(uint32_t leaf, uint32_t subleaf, uint32_t *eax, uint32_t *ebx, uint32_t *ecx, uint32_t *edx);
 
+/**
+ * @brief Calls SEAMOPS.SEAMDB_GETREF and returns the number of remaining TD-preserving updates
+ *
+ * @return Number of remaining updates
+ */
+uint32_t get_num_of_remaining_updates(void);
+
+
 #endif /* SRC_COMMON_HELPERS_HELPERS_H_ */

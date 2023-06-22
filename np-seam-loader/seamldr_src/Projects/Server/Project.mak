@@ -2,7 +2,7 @@
 #;*                                                                    *;
 #;* Intel Proprietary                                                  *;
 #;*                                                                    *;
-#;* Copyright 2021 Intel Corporation All Rights Reserved.              *;
+#;* Copyright 2023 Intel Corporation All Rights Reserved.              *;
 #;*                                                                    *;
 #;* Your use of this software is governed by the TDX Source Code       *;
 #;* LIMITED USE LICENSE.                                               *;
@@ -83,16 +83,14 @@ $(ADDITIONAL_EXCLUDE_DIR)
         @$(PREBUILD) /R $(PROJECT_DIR)\.. /T $(OBJ_DIR)\project_prebuild.incl /C project_listconvert.txt /E project_listexclude.txt /M PROJECT
 !endif
         @echo #define text_alignment_padding 0  > $(OBJ_DIR)\text_alignment_padding.h
-        $(H2INCX) $(BASE_H2INCX_FLAGS) -o $(OBJ_DIR) $(OBJ_DIR)\text_alignment_padding.h
         $(H2INCX) $(BASE_H2INCX_FLAGS) -o $(OBJ_DIR) $(PROJECT_DIR)\makeflag.auto
-        -@del $(OBJ_DIR)\Header.obj
 
 loc_build:
         @echo ===== Performing BUILD step =====
         @echo MKF_FLAGS=$(MKF_FLAGS) 2
         cd $(SERVER_CORE_BUILDDIR)
         @echo MKF_FLAGS=$(MKF_FLAGS) 1
-        @$(NMAKE) /F $(SERVER_CORE_BUILDDIR)\corex.mak LIB_DIR=$(LIB_DIR) SERVER_LIB_DIR=$(SERVER_LIB_DIR) OBJ_DIR=$(OBJ_DIR) "MKF_FLAGS=$(MKF_FLAGS)" "TDX_IO_FLAG=$(TDX_IO_FLAG)"
+        @$(NMAKE) /F $(SERVER_CORE_BUILDDIR)\corex.mak LIB_DIR=$(LIB_DIR) SERVER_LIB_DIR=$(SERVER_LIB_DIR) OBJ_DIR=$(OBJ_DIR) "MKF_FLAGS=$(MKF_FLAGS)"
         cd $(PROJECT_DIR)
         @$(NMAKE) TASK=ALL_BUILD all_build
 
@@ -120,7 +118,8 @@ ALL_INCLUDES    = /I$(PROJECT_DIR) /I$(PROJECT_DIR)\..\INCLUDE /I$(OBJ_DIR) $(SE
 PROJECT_MAK_DEPS= $(PROJECT_DIR)\MAKEFILE \
  		  $(PROJECT_DIR)\MAKEFLAG.MAK
 
-PROJECT_INC_DEPS= $(PROJECT_DIR)\*.h 
+PROJECT_INC_DEPS= $(PROJECT_DIR)\*.h \
+                  $(PROJECT_DIR)\..\INCLUDE\*.h
 
 ALL_DEPS        = $(PROJECT_INC_DEPS) $(PROJECT_MAK_DEPS) $(SERVER_INC_DEPS) $(SERVER_MAK_DEPS) $(CORE_INC_DEPS) $(CORE_MAK_DEPS)
 
@@ -137,15 +136,9 @@ ACM_PE2BINx_FLAGS = -AcmUserRev:$(ACM_USER_REV) $(ACM_PE2BINx_FLAGS)
 
 !endif
 
-#IPP_LIB        = $(CORE_DIR)\Crypto64\ipp\lib\ippcp_s_e9.lib
-#IPP_LIB        = $(CORE_DIR)\Crypto64\ipp\lib\ippcp_s_y8.lib
-IPP_LIB        = $(CORE_DIR)\Crypto64\ipp\lib\ippcp_s_mx.lib
+CORE_OBJECTS   = $(SERVER_LIB_DIR)\$(SERVER_LIB) $(LIB_DIR)\$(CORE_LIB) $(EXTRA_OBJECTS)
 
-EXTRA_OBJECTS  = $(IPP_LIB)
-
-CORE_OBJECTS   = $(SERVER_LIB_DIR)\$(SERVER_LIB) $(LIB_DIR)\$(CORE_LIB)
-
-CORE64_OBJECTS = $(SERVER_LIB_DIR)\$(SERVER64_LIB) $(EXTRA_OBJECTS)
+CORE64_OBJECTS = $(SERVER_LIB_DIR)\$(SERVER64_LIB)
 
 !if EXIST($(LIB_DIR)\$(CORE64_LIB))
 
@@ -166,9 +159,12 @@ $(OBJ_DIR)\$(ACM_NAME).exe:  $(OBJECTS32) $(CORE_OBJECTS) $(ALL_DEPS)
         $(LINK) $(LNK_FLAGS) $(OBJECTS32) $(CORE_OBJECTS)
 	@cd $(OBJ_DIR)
         $(ACM_PE2BINx) $(OBJ_DIR)\$(ACM_NAME).exe -TEXT_Alignment:$(TEXT_ALIGNMENT)
-	@cd $(PROJECT_DIR)	
+	@cd $(PROJECT_DIR)
+        @echo TEXT_ALIGNMENT=$(TEXT_ALIGNMENT)
 !if "$(TEXT_ALIGNMENT)"!="0KB"
-        @del $(OBJ_DIR)\Header.obj
+        @echo ===== Preparing PASS2 =====
+        @del $(OBJ_DIR)\Stack.obj
+        @del $(OBJ_DIR)\$(ACM_NAME).exe
         $(NMAKE) ACM_PASS2
 !endif
         $(DUMPBIN) /all /disasm $(OBJ_DIR)\$(ACM_NAME).exe > $(OBJ_DIR)\db_$(ACM_NAME).txt
@@ -177,7 +173,6 @@ $(OBJ_DIR)\$(ACM_NAME).exe:  $(OBJECTS32) $(CORE_OBJECTS) $(ALL_DEPS)
 
 ACM_PASS2:  $(ALL_DEPS) $(OBJECTS32)
         @echo ===== Building local EXE file PASS2 =====
-        $(H2INCX) $(BASE_H2INCX_FLAGS) -o $(OBJ_DIR) $(OBJ_DIR)\text_alignment_padding.h
         $(LINK) $(LNK_FLAGS) $(OBJECTS32) $(CORE_OBJECTS)
 
 !if "$(MKF_64BIT_CODE_SUPPORT)"=="1"

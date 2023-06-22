@@ -48,6 +48,12 @@ static bool_t relocate_elf_section(uint64_t image_addr, uint64_t image_size, elf
                 return false;
             }
 
+            if (relocation->r_addend >= image_size)
+            {
+                TDX_ERROR("Relocation addend 0x%llx is out of image bounds\n", relocation->r_addend);
+                return false;
+            }
+
             lfence(); // Fence speculative access to wrong address
 
             *(uint64_t*)(image_addr + relocation->r_offset) = relocation_addr + relocation->r_addend;

@@ -16,8 +16,9 @@
 
 #include <GsSupport.h>
 #include <common.h>
+#include <accessors.h>
 
-// Init cookies with some default values, in case there is an overflow before 
+// Init cookies with some default values, in case there is an overflow before
 // it is initialized
 UINT32 __security_cookie = DEFAULT_SECURITY_COOKIE;
 
@@ -33,40 +34,43 @@ DeadLoop:
 UINT32
 __security_cookie_rdrand(void)
 {
-    UINT8 num_retries = 10; // number of max retries
-    UINT32 status = 0, value = 0;
-    while(num_retries != 0){
-        if (RdSeed32(&value)){
-            status = 1;
-            break;
-        }
-        num_retries--;
-        _mm_pause();
+  UINT8 num_retries = 10; // number of max retries
+  UINT32 status = 0, value = 0;
+
+  while (num_retries != 0) {
+    if (RdSeed32(&value)) {
+      status = 1;
+      break;
     }
-    if (status == 0)
-        __security_deadloop();
-    return value;
+    num_retries--;
+    _mm_pause();
+  }
+  if (status == 0) {
+    __security_deadloop();
+  }
+  return value;
 }
 
-void 
+void
 __security_init_cookie(void)
 {
-    UINT32 Cookie;
-    Cookie = __security_cookie_rdrand();
-    if (Cookie == 0){       
-      __security_deadloop();
-    }
+  UINT32 Cookie;
+
+  Cookie = __security_cookie_rdrand();
+  if (Cookie == 0) {
+    __security_deadloop();
+  }
   __security_cookie = Cookie;
 }
 
-void 
+void
 __report_gsfailure(void)
 {
   __security_deadloop();
 }
 
-void 
-__fastcall  __security_check_cookie(UINT32 _StackCookie)
+void
+__fastcall __security_check_cookie(UINT32 _StackCookie)
 {
   if (_StackCookie == __security_cookie) {
     return;
@@ -74,7 +78,7 @@ __fastcall  __security_check_cookie(UINT32 _StackCookie)
   __report_gsfailure();
 }
 
-#if (MKF_ENGINEERING==1) &&(MKF_TRACE==1)
+#if (MKF_ENGINEERING == 1) && (MKF_TRACE == 1)
 __declspec(noreturn)
 void
 __cdecl __report_rangecheckfailure(void)

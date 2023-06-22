@@ -159,14 +159,14 @@ uint64_t td_debug_config(uint64_t leaf, uint64_t payload, uint64_t second_payloa
 #define TDX_WARN(...)                TDX_PRINT_WITH_INFO(PRINT_SEVERITY_WARN, __VA_ARGS__);
 #define TDX_LOG(...)                 TDX_PRINT_WITH_INFO(PRINT_SEVERITY_LOG, __VA_ARGS__);
 
-#else // TDX_DBG_TRACE
+#else // DEBUGFEATURE_TDX_DBG_TRACE
 
 #define TDX_PRINT(...)
 #define TDX_ERROR(...)
 #define TDX_LOG(...)
 #define TDX_WARN(...)
 
-#endif // TDX_DBG_TRACE
+#endif // DEBUGFEATURE_TDX_DBG_TRACE
 
 //Debug Assertion
 #ifdef DEBUG

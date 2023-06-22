@@ -90,9 +90,9 @@ static bool_t shared_hpa_check(pa_t hpa)
         return false;
     }
 
-    // 3) Check that HKID bits in the HPA are in the range configured for shared HKIDs (0 to MAX_MKTME_HKIDS – 1).
+    // 3) Check that HKID bits in the HPA are in the range configured for shared HKIDs
 
-    if ((uint64_t)get_hkid_from_pa(hpa) >= pseamldr_data->system_info.max_mktme_hkids)
+    if ((uint64_t)get_hkid_from_pa(hpa) >= pseamldr_data->system_info.private_hkid_min)
     {
         return false;
     }
@@ -235,3 +235,21 @@ void advance_guest_rip(void)
     set_guest_pde_bs();
 }
 
+uint32_t get_num_of_remaining_updates(void)
+{
+    uint32_t num_remaining_updates;
+    uint64_t last_entry, seamdb_size, result;
+    uint256_t last_entry_nonce;
+
+    result = ia32_seamops_seamdb_getref(&last_entry, &last_entry_nonce, &seamdb_size);
+    IF_RARE (result != SEAMOPS_SUCCESS)
+    {
+        num_remaining_updates = (uint32_t)seamdb_size;
+    }
+    else
+    {
+        num_remaining_updates = (uint32_t)(seamdb_size - (last_entry + 1));
+    }
+
+    return num_remaining_updates;
+}

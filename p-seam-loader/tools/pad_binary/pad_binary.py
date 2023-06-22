@@ -1,3 +1,5 @@
+#!/usr/intel/pkgs/python/3.6.3/bin/python
+
 """
  * @file pad_binary.py
  * @brief A tool to pad TDX module remaining bytes till page boundary with HLT opcodes.

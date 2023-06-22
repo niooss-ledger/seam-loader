@@ -16,6 +16,7 @@
 
 #include "Common.h"
 
-INT32 RdSeed32(OUT UINT32 *Val) {
-    return _rdseed32_step(Val);
+INT32 RdSeed32(OUT UINT32 *Val)
+{
+  return _rdseed32_step(Val);
 }

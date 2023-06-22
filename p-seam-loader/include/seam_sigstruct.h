@@ -48,6 +48,20 @@ typedef union
     uint32_t raw;
 } module_type_t;
 
+#define TDX_MODULE_1_0_MAJOR_SVN            0
+
+typedef union seam_svn_u
+{
+    struct
+    {
+        uint8_t seam_minor_svn;
+        uint8_t seam_major_svn;
+    };
+
+    uint16_t raw;
+} seam_svn_t;
+pseamldr_static_assert(sizeof(seam_svn_t) == 2, seam_svn_t);
+
 #define SEAM_SIGSTRUCT_SIZE            2048
 #define SEAM_SIGSTRUCT_HEADER_SIZE     128
 #define SEAM_SIGSTRUCT_SIG_OFFSET      SEAM_SIGSTRUCT_HEADER_SIZE
@@ -78,7 +92,7 @@ typedef struct
     uint8_t signature[SIGSTRUCT_SIGNATURE_SIZE];
 
     uint8_t seamhash[SIGSTRUCT_SEAMHASH_SIZE];
-    uint16_t seamsvn;
+    seam_svn_t seamsvn;
     uint64_t attributes;
     uint32_t rip_offset;
     uint8_t num_stack_pages;
@@ -90,7 +104,16 @@ typedef struct
     uint16_t pamt_entry_size_4k;
     uint16_t pamt_entry_size_2m;
     uint16_t pamt_entry_size_1g;
-    uint8_t reserved1[46];
+    uint8_t  reserved1[6];
+    uint16_t module_hv;
+    uint16_t min_update_hv;
+    bool_t   no_downgrade;
+    uint8_t  reserved2[1];
+    uint16_t num_handoff_pages;
+
+    uint32_t gdt_idt_offset;
+    uint32_t fault_wrapper_offset;
+    uint8_t  reserved3[24];
 
     uint32_t cpuid_table_size;
     uint32_t cpuid_table[SEAM_SIGSTRUCT_MAX_CPUID_TABLE_SIZE];

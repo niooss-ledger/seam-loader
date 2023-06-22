@@ -25,6 +25,7 @@
 
 #define IA32_TME_CAPABILITY_MSR_ADDR                     0x981
 #define IA32_TME_ACTIVATE_MSR_ADDR                       0x982
+#define IA32_MKTME_KEYID_PARTITIONING_MSR_ADDR           0x87
 
 #define IA32_SPEC_CTRL_MSR_ADDR                          0x48
 #define IA32_DEBUGCTL_MSR_ADDR                           0x1D9
@@ -107,6 +108,7 @@ typedef union
     };
     uint64_t raw;
 } ia32_tme_activate_t;
+pseamldr_static_assert(sizeof(ia32_tme_activate_t) == 8, ia32_tme_activate_t);
 
 typedef union
 {
@@ -124,6 +126,18 @@ typedef union
     };
     uint64_t raw;
 } ia32_tme_capability_t;
+pseamldr_static_assert(sizeof(ia32_tme_capability_t) == 8, ia32_tme_capability_t);
+
+typedef union
+{
+    struct
+    {
+        uint32_t num_mktme_kids;
+        uint32_t num_tdx_priv_kids;
+    };
+    uint64_t raw;
+} ia32_tme_keyid_partitioning_t;
+pseamldr_static_assert(sizeof(ia32_tme_keyid_partitioning_t) == 8, ia32_tme_keyid_partitioning_t);
 
 typedef union ia32_seamrr_base_u {
     struct {

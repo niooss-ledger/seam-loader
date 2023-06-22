@@ -31,6 +31,7 @@
 #define _4KB                    (4 * _1KB)
 #define _1MB                    (_1KB * _1KB)
 #define _2MB                    (2 * _1MB)
+#define _4MB                    (4 * _1MB)
 #define _1GB                    (_1MB * _1KB)
 
 #define BIT_MASK_8BITS        0xFFULL

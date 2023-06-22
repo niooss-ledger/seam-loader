@@ -16,7 +16,8 @@
 
 #include "Common.h"
 #include "GsSupport.h"
-void commonAcmEntryPoint(){
-	__security_init_cookie();
-    ProjectAcmEntryPoint();
+void commonAcmEntryPoint()
+{
+  __security_init_cookie();
+  ProjectAcmEntryPoint();
 }

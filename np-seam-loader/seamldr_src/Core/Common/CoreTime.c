@@ -16,9 +16,6 @@
 
 #include <common.h>
 #include <tpm.h>
-#include <mmio.h>
-
-UINT64  TscClkPerMsec;
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -43,16 +40,15 @@ UINT64  TscClkPerMsec;
 //
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-void __Wait10us ()
+void __Wait10us()
 {
   UINT32 Idx, Prev, New;
 
   for (Idx = 0; Idx < 7; Idx++) {
-
-    Prev = BIT12 & (UINT32) readTsc64 ();
+    Prev = BIT12 & (UINT32) readTsc64();
 
     do {
-      New = BIT12 & (UINT32) readTsc64 ();
+      New = BIT12 & (UINT32) readTsc64();
     } while (Prev == New);
   }
 }
@@ -78,33 +74,33 @@ void __Wait10us ()
 //
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-UINT32 TinyWaitRegisterValue (
-         UINT32 RegAddr,
-         UINT32 Width,
-         UINT32 Mask,
-         UINT32 Cond,
-         UINT32 ExpVal,
-         UINT32 Timeout
-         )
+UINT32 TinyWaitRegisterValue(UINT32 RegAddr,
+                             UINT32 Width,
+                             UINT32 Mask,
+                             UINT32 Cond,
+                             UINT32 ExpVal,
+                             UINT32 Timeout
+                             )
 {
-  UINT32  Current, Idx;
+  UINT32 Current, Idx;
 
   for (Idx = 0; Idx < Timeout; Idx++) {
     Current = Mask &
               ((UINT32) ((Width == 1) ?
-                  __ReadMmioByte (RegAddr) :
-                ((Width == 2) ?  __ReadMmioWord (RegAddr) : __ReadMmioDword (RegAddr))));
+                         __ReadMmioByte(RegAddr) :
+                         ((Width == 2) ?  __ReadMmioWord(RegAddr) : __ReadMmioDword(RegAddr))));
 
-    if ((Cond == EQUAL) && (Current == ExpVal))
-        return 0;
-    else if ((Cond == NOT_EQUAL) && (Current != ExpVal))
+    if ((Cond == EQUAL) && (Current == ExpVal)) {
       return 0;
+    } else if ((Cond == NOT_EQUAL) && (Current != ExpVal)) {
+      return 0;
+    }
 
-    __Wait10us ();
+    __Wait10us();
   }
   return 1;
 }
-         
+
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 //  Procedure:	BaseWaitMsrValue
@@ -114,7 +110,7 @@ UINT32 TinyWaitRegisterValue (
 //          Cond - condition to apply to masked register value: EQUAL
 //                 and NOT_EQUAL are legal values
 //          ExpVal - value to be "Cond" related to masked register
-//                   value 
+//                   value
 //          Step  - 10usec or 1msec denoted as 0 and 1
 //          Timeout - timeout in 10th of usec or in ms to wait for "Cond"
 //
@@ -125,27 +121,27 @@ UINT32 TinyWaitRegisterValue (
 //
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-UINT32 BaseWaitMsrValue (
-         UINT32 MsrAddr,
-         UINT64 Mask,
-         UINT32 Cond,
-         UINT64 ExpVal,
-         UINT32 Timeout,
-         UINT32 Step
-         )
+UINT32 BaseWaitMsrValue(UINT32 MsrAddr,
+                        UINT64 Mask,
+                        UINT32 Cond,
+                        UINT64 ExpVal,
+                        UINT32 Timeout,
+                        UINT32 Step
+                        )
 {
-  UINT64  Current;
-  UINT32  Idx;
+  UINT64 Current;
+  UINT32 Idx;
 
   for (Idx = 0; Idx < Timeout; Idx++) {
-    Current = Mask & __readMsr64 (MsrAddr);
+    Current = Mask & __readMsr64(MsrAddr);
 
-    if ((Cond == EQUAL) && (Current == ExpVal))
-        return 0;
-    else if ((Cond == NOT_EQUAL) && (Current != ExpVal))
-      return 0; 
+    if ((Cond == EQUAL) && (Current == ExpVal)) {
+      return 0;
+    } else if ((Cond == NOT_EQUAL) && (Current != ExpVal)) {
+      return 0;
+    }
 
-    (Step == In1MSEC) ? Wait1ms () : __Wait10us ();
+    (Step == In1MSEC) ? Wait1ms() : __Wait10us();
   }
   return 1;
 }
@@ -153,26 +149,25 @@ UINT32 BaseWaitMsrValue (
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 //  Procedure:  __WaitRegisterBitSet
-// 
+//
 //  Input:  Reg - register in MMIO space.
 //          Mask - bit to wait to be asserted
-// 
+//
 //  Output:	0 if value is met or 1 if timeout occurred.
-// 
+//
 //  Description: Waits with timeout 1ms for single bit in
 //  MMIO register to be asserted. Exits immediately upon assertion.
 //  Despite that status is returned, it is expected that caller will
 //  ignore it, since not clear what action needs to be taken. If LT
 //  status bit is not asserted after 1ms past LT command CS is broken.
-// 
+//
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-UINT32 __WaitRegisterBitSet (
-         UINT32 Reg,
-         UINT32 Mask
-  )                  
-{      
-  return TinyWaitRegisterValue (
+UINT32 __WaitRegisterBitSet(UINT32 Reg,
+                            UINT32 Mask
+                            )
+{
+  return TinyWaitRegisterValue(
     Reg,
     4,
     Mask,
@@ -180,31 +175,30 @@ UINT32 __WaitRegisterBitSet (
     Mask,
     100
     );
-} 
-  
+}
+
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 //  Procedure:  __WaitRegisterBitClear
-// 
+//
 //  Input:  Reg - register in MMIO space.
 //          Mask - bit to wait to be cleared
-// 
+//
 //  Output:	0 if value is met or 1 if timeout occured.
-// 
-//  Description: Waits with timeout 1ms for single bit in 
+//
+//  Description: Waits with timeout 1ms for single bit in
 //  MMIO register to be de-asserted. Exits immediately upon de-assertion.
 //  Despite that status is returned, it is expected that caller will
 //  ignore it, since not clear what action needs to be taken. If LT
 //  status bit is not de-asserted after 1ms past LT command CS is broken.
-// 
+//
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-UINT32 __WaitRegisterBitClear (
-         UINT32 Reg,
-         UINT32 Mask
-  )                  
-{      
-  return TinyWaitRegisterValue (
+UINT32 __WaitRegisterBitClear(UINT32 Reg,
+                              UINT32 Mask
+                              )
+{
+  return TinyWaitRegisterValue(
     Reg,
     4,
     Mask,
@@ -212,7 +206,7 @@ UINT32 __WaitRegisterBitClear (
     0,
     100
     );
-} 
+}
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
@@ -221,14 +215,14 @@ UINT32 __WaitRegisterBitClear (
 //  Input:	None
 //
 //  Output:	None
-//  
+//
 //  Description:	Stalls execution for 1 ms.
 //  +--------------------------------------------------------------------+
-//  This procedure is specially designed to be called from trampoline   
-//  code. It is NOT very accurate but it can be called from code which      
-//  has not been fixed up.                                              
+//  |This procedure is specially designed to be called from trampoline   |
+//  |code. It is NOT very accurate but it can be called from code which  |
+//  |has not been fixed up.                                              |
 //  +--------------------------------------------------------------------+
-//  TSC clock period = 1000000us / 2.4Ghz = 0.000416666 us               
+//  TSC clock period = 1000000us / 2.4Ghz = 0.000416666 us
 //
 //  Bits toggle (half-period):
 //  Bit 0 = 0.000416666 us
@@ -242,16 +236,15 @@ UINT32 __WaitRegisterBitClear (
 //
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-void __Wait1ms ()
+void __Wait1ms()
 {
   UINT32 Idx, Prev, New;
 
   for (Idx = 0; Idx < 11; Idx++) {
-
-    Prev = BIT18 & (UINT32) readTsc64 ();
+    Prev = BIT18 & (UINT32) readTsc64();
 
     do {
-      New = BIT18 & (UINT32) readTsc64 ();
+      New = BIT18 & (UINT32) readTsc64();
     } while (Prev == New);
   }
 }
@@ -268,21 +261,21 @@ void __Wait1ms ()
 //
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-void Wait1ms ()
+void Wait1ms()
 {
-  UINT64  Now, Then;
+  UINT64 Now, Then, TscClkPerMsec;
 
-#if (SIMICS_BLD==1)
-      TscClkPerMsec = 0x15*133330;
+#if (SIMICS_BLD == 1)
+  TscClkPerMsec = 0x15 * 133330;
 #else
-      TscClkPerMsec = calibrateTsc64 ();
+  TscClkPerMsec = calibrateTsc64();
 #endif
 
   Now = readTsc64();
   Then = Now + TscClkPerMsec;
 
   do {
-    Now = readTsc64 ();
+    Now = readTsc64();
   } while (Now < Then);
 }
 
@@ -298,10 +291,11 @@ void Wait1ms ()
 //
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-void WaitFixedTime (UINT32 Time)
+void WaitFixedTime(UINT32 Time)
 {
   UINT32 Idx;
+
   for (Idx = 0; Idx < Time; Idx++) {
-    Wait1ms ();
+    Wait1ms();
   }
 }

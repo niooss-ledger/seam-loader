@@ -117,7 +117,7 @@ typedef struct PACKED system_info_s
     uint64_t seamrr_base;
     uint64_t seamrr_size;
     uint64_t hkid_mask;
-    uint64_t max_mktme_hkids;
+    uint64_t private_hkid_min;
 } system_info_t;
 
 #define MAX_NUM_OF_LPS              1024

@@ -78,4 +78,102 @@ _STATIC_INLINE_ void ia32_vmclear(vmcs_ptr_t *vmcs_p) {
 	_ASM_VOLATILE_ ("vmclear %0"::"m"(vmcs_p):"memory");
 }
 
+#define SEAMOPS_CAPABILITIES_LEAF          0
+#define SEAMOPS_SEAMREPORT_LEAF            1
+#define SEAMOPS_SEAMDB_CLEAR_LEAF          2
+#define SEAMOPS_SEAMDB_INSERT_LEAF         3
+#define SEAMOPS_SEAMDB_GETREF_LEAF         4
+#define SEAMOPS_SEAMDB_REPORT_LEAF         5
+
+#define SEAMOPS_SUCCESS                    0
+#define SEAMOPS_INPUT_ERROR                1
+#define SEAMOPS_ENTROPY_ERROR              2
+#define SEAMOPS_DATABASE_ERROR             3
+
+_STATIC_INLINE_ void ia32_seamops_seamdb_clear(void)
+{
+    uint64_t leaf = SEAMOPS_SEAMDB_CLEAR_LEAF;
+    uint64_t result;
+
+    _ASM_VOLATILE_ (
+#ifdef SEAM_INSTRUCTIONS_SUPPORTED_IN_COMPILER
+            "seamops;"
+#else
+            ".byte 0x66; .byte 0x0F; .byte 0x01; .byte 0xCE;"
+#endif
+            :"=a"(result)
+            :"a"(leaf)
+            :"memory", "cc");
+
+    pseamldr_sanity_check((result == SEAMOPS_SUCCESS), SCEC_VT_ACCESSORS_SOURCE, 4);
+}
+
+#define MAX_NUMBER_OF_SEAMDB_INSERT_RETRIES         5
+
+_STATIC_INLINE_ uint64_t ia32_seamops_seamdb_insert(void)
+{
+    uint64_t leaf = SEAMOPS_SEAMDB_INSERT_LEAF;
+    uint64_t result;
+
+    _ASM_VOLATILE_ (
+#ifdef SEAM_INSTRUCTIONS_SUPPORTED_IN_COMPILER
+            "seamops;"
+#else
+            ".byte 0x66; .byte 0x0F; .byte 0x01; .byte 0xCE;"
+#endif
+            :"=a"(result)
+            :"a"(leaf)
+            :"memory", "cc");
+
+    pseamldr_sanity_check((result == SEAMOPS_ENTROPY_ERROR) || (result == SEAMOPS_SUCCESS),
+                           SCEC_VT_ACCESSORS_SOURCE, 5);
+
+    return result;
+}
+
+_STATIC_INLINE_ uint64_t ia32_seamops_seamdb_getref(uint64_t* last_entry, uint256_t* last_entry_nonce,
+                                                    uint64_t* seamdb_size)
+{
+    uint64_t leaf = SEAMOPS_SEAMDB_GETREF_LEAF;
+    uint64_t result;
+
+    _ASM_VOLATILE_ (
+#ifdef SEAM_INSTRUCTIONS_SUPPORTED_IN_COMPILER
+            "seamops;"
+#else
+            ".byte 0x66; .byte 0x0F; .byte 0x01; .byte 0xCE;"
+#endif
+            "movq %%r10, %1;"
+            "movq %%r11, %2;"
+            "movq %%r12, %3;"
+            "movq %%r13, %4;"
+            "movq %%r14, %5;"
+            "movq %%r15, %6;"
+
+            :"=a"(result), "=r"(*last_entry),   "=r"(last_entry_nonce->qwords[0]),
+             "=r"(last_entry_nonce->qwords[1]), "=r"(last_entry_nonce->qwords[2]),
+             "=r"(last_entry_nonce->qwords[3]), "=r"(*seamdb_size)
+            :"a"(leaf)
+            :"memory", "cc", "r10", "r11", "r12", "r13", "r14", "r15");
+
+    return result;
+}
+
+_STATIC_INLINE_ uint64_t ia32_seamops_capabilities(void)
+{
+    uint64_t leaf = SEAMOPS_CAPABILITIES_LEAF; // for CAPABILITES
+    uint64_t capabilities = 0;
+
+    _ASM_VOLATILE_ (
+#ifdef SEAM_INSTRUCTIONS_SUPPORTED_IN_COMPILER
+            "seamops;"
+#else
+            ".byte 0x66; .byte 0x0F; .byte 0x01; .byte 0xCE;"
+#endif
+            :"=a"(capabilities) : "a"(leaf)
+            :"memory", "cc");
+
+    return capabilities;
+}
+
 #endif /* SRC_COMMON_ACCESSORS_VT_ACCESSORS_H_ */

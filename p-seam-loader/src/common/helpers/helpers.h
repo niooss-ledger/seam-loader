@@ -1,11 +1,24 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file helpers.h
  * @brief Common PSEAMLDR API flow helper functions
@@ -14,14 +27,26 @@
 #ifndef SRC_COMMON_HELPERS_HELPERS_H_
 #define SRC_COMMON_HELPERS_HELPERS_H_
 
-#include "../../../include/pseamldr_api_defs.h"
-#include "../../../include/pseamldr_basic_defs.h"
-#include "../../../include/pseamldr_basic_types.h"
+#include "pseamldr_api_defs.h"
+#include "pseamldr_basic_defs.h"
+#include "pseamldr_basic_types.h"
 #include "x86_defs/x86_defs.h"
 #include "accessors/data_accessors.h"
 #include "accessors/vt_accessors.h"
 #include "memory_handlers/keyhole_manager.h"
 #include "error_reporting.h"
+#include "x86_defs/msr_defs.h"
+
+_STATIC_INLINE_ uint8_t bit_test(volatile uint8_t* mem, uint32_t bit)
+{
+    uint8_t bit_value = 0;
+    uint32_t byte_position = bit / 8;
+    uint32_t bit_position_in_byte = bit % 8;
+
+    bit_value = (mem[byte_position] & BIT(bit_position_in_byte)) >> bit_position_in_byte;
+
+    return bit_value;
+}
 
 _STATIC_INLINE_ uint8_t bit_test_and_set(volatile uint8_t* mem, uint32_t bit)
 {
@@ -74,6 +99,9 @@ _STATIC_INLINE_ bool_t is_pa_smaller_than_max_pa(uint64_t pa)
 
 _STATIC_INLINE_ bool_t is_overlap(uint64_t base, uint64_t size, uint64_t base2, uint64_t size2)
 {
+    pseamldr_sanity_check(base <= (base + size), SCEC_HELPERS_SOURCE, 11);
+    pseamldr_sanity_check(base2 <= (base2 + size2), SCEC_HELPERS_SOURCE, 12);
+
     if ((base >= (base2 + size2)) || (base2 >= (base + size)))
     {
         return false;
@@ -313,6 +341,16 @@ void seamextend_write(seamextend_t* seamextend_src);
 uint32_t get_current_lpid(void);
 
 /**
+ * @brief Helper functions to get the current PKGID number
+ */
+uint32_t get_current_pkgid(void);
+
+/**
+ * @brief Helper functions to get the current Cache domain ID number
+ */
+uint32_t get_current_domainid(void);
+
+/**
  * @brief Safe memory compare function for sensitive data (cryptography)
  */
 bool_t safe_memcmp(const void * a, const void * b, uint64_t nbytes);
@@ -347,5 +385,29 @@ void ia32_safe_cpuid(uint32_t leaf, uint32_t subleaf, uint32_t *eax, uint32_t *e
  */
 uint32_t get_num_of_remaining_updates(void);
 
+/**
+ * @brief Program MKTME keys using PCONFIG
+ *
+ * @param command - MKTME program command to pass to PCONFIG
+ *
+ * @return Error code that states the reason of failure
+ */
+api_error_type program_mktme_keys(uint16_t hkid);
+
+/**
+ * @brief Check if there's a pending MSR on the host VMM side
+ */
+_STATIC_INLINE_ bool_t is_interrupt_pending_host_side(void)
+{
+    ia32_rflags_t vmm_rflags;
+    ia32_msr_intr_pending_t intr_pending;
+
+    ia32_vmread(VMX_GUEST_RFLAGS_ENCODE, &vmm_rflags.raw);
+    intr_pending.raw = ia32_rdmsr(IA32_INTR_PENDING_MSR_ADDR);
+
+    intr_pending.intr &= vmm_rflags.ief;
+
+    return (intr_pending.raw != 0);
+}
 
 #endif /* SRC_COMMON_HELPERS_HELPERS_H_ */

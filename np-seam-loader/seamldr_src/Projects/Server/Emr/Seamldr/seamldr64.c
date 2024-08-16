@@ -1,18 +1,24 @@
-//**********************************************************************;
-//*                                                                    *;
-//* Intel Proprietary                                                  *;
-//*                                                                    *;
-//* Copyright 2021 Intel Corporation All Rights Reserved.              *;
-//*                                                                    *;
-//* Your use of this software is governed by the TDX Source Code       *;
-//* LIMITED USE LICENSE.                                               *;
-//*                                                                    *;
-//* The Materials are provided "as is," without any express or         *;
-//* implied warranty of any kind including warranties of               *;
-//* merchantability, non-infringement, title, or fitness for a         *;
-//* particular purpose.                                                *;
-//*                                                                    *;
-//**********************************************************************;
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 
 #include <common.h>
 #include <common64.h>
@@ -40,22 +46,22 @@ static void CloseTPMLocality(PT_CTX* PtCtx)
 
     // To close locality 3 do a
     // 1 - byte write of 0x0 to MMIO address 0xFED203A8 (CMD.CLOSE.LOCALITY3) and then do a 1 - byte read to the same address.
-    *((UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_LOCALITY3)) = 0x0;
+    *((volatile UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_LOCALITY3)) = 0x0;
     do {
-        ReadByte = *((UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_LOCALITY3));
+        ReadByte = *((volatile UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_LOCALITY3));
         PauseCpu();
     } while ((ReadByte != 0) && (ReadByte != 0xFF));
 
     // The TXT private space and TPM locality 2 must be closed only if the platform is not post - SENTER.
     // The post - SENTER state can be determined by reading 1 - byte at LT.STS register at MMIO address 0xFED20000. 
-    STSRegister = *((UINT8*)(&TXTPrivateBase->LT_STS));
+    STSRegister = *((volatile UINT8*)(&TXTPrivateBase->LT_STS));
 
     // If the value read has bit 0 set to 1 (i.e.LT.STS[0] == 1) then do not close the TXT private space or the TPM locality 2. 
     if ((STSRegister & 0x1) == 0) {
         // To close TXT private space do a 1 - byte write of 0x0 to MMIO address 0xFED20048 (CMD.CLOSE - PRIVATE) and then do a 1 - byte read to the same address.
-        *((UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_PRIVATE)) = 0x0;
+        *((volatile UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_PRIVATE)) = 0x0;
         do {
-            ReadByte = *((UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_PRIVATE));
+            ReadByte = *((volatile UINT8*)(&TXTPrivateBase->LT_CMD_CLOSE_PRIVATE));
             PauseCpu();
         } while ((ReadByte != 0) && (ReadByte != 0xFF));
 
@@ -82,9 +88,9 @@ static void ReopenTPMLocality(PT_CTX* PtCtx)
         // If the value read has bit 0 set to 1 (i.e.LT.STS[0] == 1) then re-open locality 2 for the MLE
         // Note that access to MMIO registers must be done as UC accesses.
 
-        *((UINT8*)(&TXTPrivateBase->LT_CMD_OPEN_LOCALITY2)) = 0x0;
+        *((volatile UINT8*)(&TXTPrivateBase->LT_CMD_OPEN_LOCALITY2)) = 0x0;
         do {
-            ReadByte = *((UINT8*)(&TXTPrivateBase->LT_CMD_OPEN_LOCALITY2));
+            ReadByte = *((volatile UINT8*)(&TXTPrivateBase->LT_CMD_OPEN_LOCALITY2));
             PauseCpu();
         } while ((ReadByte != 0) && (ReadByte != 0xFF));
 

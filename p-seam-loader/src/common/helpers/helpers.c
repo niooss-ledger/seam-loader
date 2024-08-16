@@ -1,11 +1,24 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file helpers.c
  * @brief Common PSEAMLDR API flow helper functions
@@ -22,6 +35,7 @@
 #include "memory_handlers/keyhole_manager.h"
 #include "seam_sigstruct.h"
 #include "crypto/sha384.h"
+#include "x86_defs/mktme.h"
 
 uint64_t get_num_addressable_lps_on_socket(void)
 {
@@ -50,6 +64,24 @@ uint32_t get_current_lpid(void)
     ia32_safe_cpuid(CPUID_GET_TOPOLOGY_LEAF, 0, &eax, &ebx, &ecx, &edx);
 
     return edx;
+}
+
+uint32_t get_current_pkgid(void)
+{
+    uint32_t eax, ebx, ecx, edx;
+
+    ia32_safe_cpuid(CPUID_GET_TOPOLOGY_LEAF, 0, &eax, &ebx, &ecx, &edx);
+
+    uint32_t pkg_id = edx >> get_pseamldr_data()->x2apic_pkg_id_shift_count;
+
+    pseamldr_sanity_check (pkg_id < MAX_PKGS, SCEC_HELPERS_SOURCE, 15);
+
+    return pkg_id;
+}
+
+uint32_t get_current_domainid(void)
+{
+    return get_current_pkgid();
 }
 
 void basic_memset(uint64_t dst, uint64_t dst_bytes, uint8_t val, uint64_t nbytes)
@@ -128,6 +160,8 @@ api_error_type check_and_map_aligned_shared_hpa(pa_t hpa, uint64_t alignment, ma
 
 bool_t is_addr_in_range(uint64_t addr, uint64_t base, uint64_t size)
 {
+    pseamldr_sanity_check(base <= (base + size), SCEC_HELPERS_SOURCE, 10);
+
     return ((addr >= base) && (addr < (base + size)));
 }
 
@@ -253,3 +287,63 @@ uint32_t get_num_of_remaining_updates(void)
 
     return num_remaining_updates;
 }
+
+api_error_type program_mktme_keys(uint16_t hkid)
+{
+    mktme_key_program_t mktme_key_program;
+    api_error_type      return_val = PSEAMLDR_EUNSPECERR;
+    uint64_t            pconfig_return_code;
+
+    basic_memset_to_zero(&mktme_key_program, sizeof(mktme_key_program_t));
+
+    // set the command, hkid as keyid and encryption algorithm
+    mktme_key_program.keyid_ctrl.command = MKTME_KEYID_SET_KEY_RANDOM;
+    mktme_key_program.keyid = hkid;
+
+    if (get_psysinfo_table()->tdx_ac)
+    {
+        if (get_pseamldr_data()->system_info.ia32_tme_activate.algs_aes_xts_256)
+        {
+            mktme_key_program.keyid_ctrl.enc_algo = AES_XTS_256;
+        }
+        else
+        {
+            mktme_key_program.keyid_ctrl.enc_algo = AES_XTS_128;
+        }
+    }
+    else
+    {
+        if (get_pseamldr_data()->system_info.ia32_tme_activate.algs_aes_xts_256_with_integrity)
+        {
+            mktme_key_program.keyid_ctrl.enc_algo = AES_XTS_256_WITH_INTEGRITY;
+        }
+        else
+        {
+            mktme_key_program.keyid_ctrl.enc_algo = AES_XTS_128_WITH_INTEGRITY;
+        }
+    }
+
+    // Execute the PCONFIG instruction with the updated struct and return
+    pconfig_return_code = ia32_mktme_key_program(&mktme_key_program);
+
+    if (pconfig_return_code != MKTME_PROG_SUCCESS)
+    {
+        TDX_ERROR("pconfig_return_code = %llx\n", pconfig_return_code);
+        if (pconfig_return_code == MKTME_ENTROPY_ERROR)
+        {
+            return_val = PSEAMLDR_ENOENTROPY;
+            TDX_ERROR("Failed to generate a key for the MKTME engine\n");
+            goto EXIT;
+        }
+        else
+        {
+            // unexpected - FATAL ERROR
+            FATAL_ERROR();
+        }
+    }
+
+    return_val = PSEAMLDR_SUCCESS;
+EXIT:
+    return return_val;
+}
+

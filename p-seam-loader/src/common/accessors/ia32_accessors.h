@@ -1,11 +1,24 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file ia32_accessors.h
  * @brief IA32 Accessors Definitions
@@ -14,9 +27,10 @@
 #ifndef SRC_COMMON_ACCESSORS_IA32_ACCESSORS_H_
 #define SRC_COMMON_ACCESSORS_IA32_ACCESSORS_H_
 
-#include "../../../include/pseamldr_basic_defs.h"
-#include "../../../include/pseamldr_basic_types.h"
+#include "pseamldr_basic_defs.h"
+#include "pseamldr_basic_types.h"
 #include "x86_defs/x86_defs.h"
+#include "x86_defs/mktme.h"
 
 /**
  * @brief Generate random 64-bit number. Returns false if generation failed (no entropy)
@@ -195,5 +209,75 @@ _STATIC_INLINE_ void serialize(void)
     _ASM_VOLATILE_ (".byte  0x0F, 0x01, 0xE8" /*SERIALIZE op*/ : : : "memory");
 }
 
+/**
+ * @brief issue PCONFIG command to program MKTME keys
+ * @param key_program_addr
+ * @return
+ */
+_STATIC_INLINE_ uint64_t ia32_mktme_key_program(mktme_key_program_t *key_program_addr)
+{
+    ia32_rflags_t ret_flags;
+    uint64_t error_code;
+    _ASM_VOLATILE_ (
+        #ifdef PCONFIG_SUPPORTED_IN_COMPILER
+            "pconfig;"
+        #else
+            ".byte 0x0F\n"
+            ".byte 0x01\n"
+            ".byte 0xC5\n"
+        #endif
+        "pushfq\n"
+        "popq %%rcx"
+        : "=a"(error_code), "=c"(ret_flags.raw) : "a"(0), "b"(key_program_addr) : "cc");
+    // On return: ZF=0 indicates success; ZF=1 indicates failure (error code in RAX).  ZF is bit 6 in EFLAGS
+    return (ret_flags.zf) ? error_code : 0;
+}
+
+_STATIC_INLINE_ void store_xmms_in_buffer(uint128_t xmms[16])
+{
+    _ASM_VOLATILE_ (
+         // Storing the existing XMM's
+            "movdqa %%xmm0, (%0)\n"
+            "movdqa %%xmm1, 0x10(%0)\n"
+            "movdqa %%xmm2, 0x20(%0)\n"
+            "movdqa %%xmm3, 0x30(%0)\n"
+            "movdqa %%xmm4, 0x40(%0)\n"
+            "movdqa %%xmm5, 0x50(%0)\n"
+            "movdqa %%xmm6, 0x60(%0)\n"
+            "movdqa %%xmm7, 0x70(%0)\n"
+            "movdqa %%xmm8, 0x80(%0)\n"
+            "movdqa %%xmm9, 0x90(%0)\n"
+            "movdqa %%xmm10, 0xA0(%0)\n"
+            "movdqa %%xmm11, 0xB0(%0)\n"
+            "movdqa %%xmm12, 0xC0(%0)\n"
+            "movdqa %%xmm13, 0xD0(%0)\n"
+            "movdqa %%xmm14, 0xE0(%0)\n"
+            "movdqa %%xmm15, 0xF0(%0)\n"
+
+        : : "r"(xmms));
+}
+
+_STATIC_INLINE_ void load_xmms_from_buffer(const uint128_t xmms[16])
+{
+    _ASM_VOLATILE_ (
+            "movdqa (%0), %%xmm0\n"
+            "movdqa 0x10(%0), %%xmm1\n"
+            "movdqa 0x20(%0), %%xmm2\n"
+            "movdqa 0x30(%0), %%xmm3\n"
+            "movdqa 0x40(%0), %%xmm4\n"
+            "movdqa 0x50(%0), %%xmm5\n"
+            "movdqa 0x60(%0), %%xmm6\n"
+            "movdqa 0x70(%0), %%xmm7\n"
+            "movdqa 0x80(%0), %%xmm8\n"
+            "movdqa 0x90(%0), %%xmm9\n"
+            "movdqa 0xA0(%0), %%xmm10\n"
+            "movdqa 0xB0(%0), %%xmm11\n"
+            "movdqa 0xC0(%0), %%xmm12\n"
+            "movdqa 0xD0(%0), %%xmm13\n"
+            "movdqa 0xE0(%0), %%xmm14\n"
+            "movdqa 0xF0(%0), %%xmm15\n"
+
+        : : "r"(xmms));
+}
 
 #endif /* SRC_COMMON_ACCESSORS_IA32_ACCESSORS_H_ */

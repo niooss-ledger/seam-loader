@@ -1,11 +1,24 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file msr_defs.h
  * @brief msr definitions
@@ -36,6 +49,8 @@
 
 
 #define IA32_INTR_PENDING_MSR_ADDR                       0x9A
+#define IA32_WBINVDP_MSR_ADDR                            0x98
+#define IA32_CORE_THREAD_COUNT_MSR_ADDR                  0x35
 
 #define IA32_SEAMRR_BASE_AND_MASK_MASK           BITS((MAX_PA-1), 25)
 
@@ -91,20 +106,22 @@ typedef union
 {
     struct
     {
-        uint64_t lock                                    : 1, //0
-                 tme_enable                              : 1, //1
-                 key_select                              : 1, //2
-                 save_key_for_standby                    : 1, //3
-                 tme_policy                              : 4, //4-7
-                 sgx_tem_enable                          : 1, //8
-                 rsvd                                    : 23, //9-31
-                 mk_tme_keyid_bits                       : 4, //32-35
-                 tdx_reserved_keyid_bits                 : 4, //36-39
-                 rsvd1                                   : 8, //40-47
-                 mk_tme_crypto_algs_aes_xts_128          : 1,
-                 mk_tme_crypto_algs_aes_xts_128_with_integrity : 1,
-                 mk_tme_crypto_algs_aes_xts_256          : 1,
-                 mk_tme_crypto_algs_rsvd                 : 13;
+        uint64_t lock                            : 1 , //0
+                 tme_enable                      : 1,  //1
+                 key_select                      : 1,  //2
+                 save_key_for_standby            : 1,  //3
+                 tme_policy                      : 4,  //4-7
+                 sgx_tem_enable                  : 1,  //8
+                 rsvd                            : 22, //9-30
+                 tme_enc_bypass_enable           : 1,  //31
+                 mk_tme_keyid_bits               : 4,  //32-35
+                 tdx_reserved_keyid_bits         : 4,  //36-39
+                 rsvd1                           : 8,  //40-47
+                 algs_aes_xts_128                : 1,  //48
+                 algs_aes_xts_128_with_integrity : 1,  //49
+                 algs_aes_xts_256                : 1,  //50
+                 algs_aes_xts_256_with_integrity : 1,  //51
+                 algs_rsvd                       : 12;
     };
     uint64_t raw;
 } ia32_tme_activate_t;
@@ -229,5 +246,27 @@ typedef union ia32_sgx_debug_mode_u
     };
     uint64_t raw;
 } ia32_sgx_debug_mode_t;
+
+typedef union ia32_msr_intr_pending_u
+{
+    struct
+    {
+        uint64_t intr  : 1;   // Bit 0: INTR is pending
+        uint64_t nmi   : 1;   // Bit 1: NMI is pending
+        uint64_t smi   : 1;   // Bit 2: SMI is pending
+        uint64_t other : 61;  // Bits 63:3: Other events are pending
+    };
+    uint64_t raw;
+} ia32_msr_intr_pending_t;
+
+typedef union ia32_core_thread_count_u
+{
+    struct
+    {
+        uint64_t lps_in_package  : 16;
+        uint64_t rsvd            : 48;
+    };
+    uint64_t raw;
+} ia32_core_thread_count_t;
 
 #endif /* SRC_COMMON_X86_DEFS_MSR_DEFS_H_ */

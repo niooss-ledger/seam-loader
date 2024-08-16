@@ -1,11 +1,24 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file x86_defs.h
  * @brief x86 definitions
@@ -290,6 +303,7 @@ pseamldr_static_assert(sizeof(cpu_cache_params_t) == 4, cpu_cache_params_t);
 #define CPUID_DET_CACHE_PARAMS_SUBLEAF 3
 
 #define CPUID_GET_TOPOLOGY_LEAF 0x1F
+#define CPUID_GET_TOPOLOGY_MAX_SUBLEAF 0x5
 
 #define CPUID_GET_MAX_PA_LEAF 0x80000008
 #define CPUID_MAX_PA_BITS     BITS(7,0)
@@ -312,5 +326,39 @@ typedef union
     uint32_t raw;
 } fms_info_t; //cpuid_01_eax
 pseamldr_static_assert(sizeof(fms_info_t) == 4, fms_info_t);
+
+typedef union
+{
+    struct
+    {
+        uint32_t level_number : 8;
+        uint32_t level_type   : 8;
+        uint32_t rsvd         : 16;
+    };
+    uint32_t raw;
+} cpuid_topology_level_t;  //cpuid_04_03_ecx
+pseamldr_static_assert(sizeof(cpuid_topology_level_t) == 4, cpuid_topology_level_t);
+
+typedef enum
+{
+    LEVEL_TYPE_INVALID = 0,
+    LEVEL_TYPE_SMT     = 1,
+    LEVEL_TYPE_CORE    = 2,
+    LEVEL_TYPE_MODULE  = 3,
+    LEVEL_TYPE_TILE    = 4,
+    LEVEL_TYPE_DIE     = 5,
+    LEVEL_TYPE_MAX     = 6
+} cpuid_topology_level_type_e;
+
+typedef union
+{
+    struct
+    {
+        uint32_t shift_count : 5;
+        uint32_t rsvd        : 27;
+    };
+    uint32_t raw;
+} cpuid_topology_shift_t;
+pseamldr_static_assert(sizeof(cpuid_topology_shift_t) == 4, cpuid_topology_shift_t);
 
 #endif /* SRC_COMMON_X86_DEFS_X86_DEFS_H_ */

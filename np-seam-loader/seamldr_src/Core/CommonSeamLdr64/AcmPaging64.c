@@ -1,23 +1,32 @@
-//**********************************************************************;
-//*                                                                    *;
-//* Intel Proprietary                                                  *;
-//*                                                                    *;
-//* Copyright 2021 Intel Corporation All Rights Reserved.              *;
-//*                                                                    *;
-//* Your use of this software is governed by the TDX Source Code       *;
-//* LIMITED USE LICENSE.                                               *;
-//*                                                                    *;
-//* The Materials are provided "as is," without any express or         *;
-//* implied warranty of any kind including warranties of               *;
-//* merchantability, non-infringement, title, or fitness for a         *;
-//* particular purpose.                                                *;
-//*                                                                    *;
-//**********************************************************************;
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 
 #include "common.h"
 #include "paging.h"
 #include "Header.h"
 #include "msr.h"
+
+void __ud2(void);
+#pragma intrinsic(__ud2)
 
 static void Map4KPage(IA32E_PXE_T* LeafPXE, UINT64 PhysBase, PAGE_ACCESS_TYPE IsWritable, PAGE_CACHING_TYPE IsWBMemtype)
 {
@@ -112,7 +121,7 @@ UINT64 MapPhysicalRange(PT_CTX *pctx, UINT64 Addr, UINT64 size, PAGE_ACCESS_TYPE
 
         IA32E_PAGING_TABLE_T* Pt = (IA32E_PAGING_TABLE_T*)pctx->PtBaseFor4KMappings;
 
-        VirtualAddr = pctx->VirtualBaseFor4KMappings + (pctx->NextFreePtIdx * _4KB) + OffsetInPage;
+        VirtualAddr = pctx->VirtualBaseFor4KMappings + ((UINT64)pctx->NextFreePtIdx * _4KB) + OffsetInPage;
 
         for (i = 0; i < PagesToMap; i++, pctx->NextFreePtIdx++, Base += _4KB) {
             Map4KPage(&Pt->PT[pctx->NextFreePtIdx], Base, IsWritable, IsWBMemtype);

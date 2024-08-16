@@ -1,11 +1,24 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file pseamldr_data.h
  * @brief PSEAMLDR data (per LP) definitions
@@ -14,8 +27,8 @@
 #define __PSEAMLDR_DATA_H_INCLUDED__
 
 
-#include "../../../include/pseamldr_basic_defs.h"
-#include "../../../include/pseamldr_basic_types.h"
+#include "pseamldr_basic_defs.h"
+#include "pseamldr_basic_types.h"
 #include "pseamldr_data_offsets.h"
 #include "pseamldr_api_defs.h"
 #include "crypto/rsa.h"
@@ -23,6 +36,7 @@
 #include "memory_handlers/keyhole_manager.h"
 #include "seam_sigstruct.h"
 #include "debug/tdx_debug.h"
+#include "data_structures/pseamldr_data_types.h"
 
 /**
  * @struct gprs_state_t
@@ -118,9 +132,23 @@ typedef struct PACKED system_info_s
     uint64_t seamrr_size;
     uint64_t hkid_mask;
     uint64_t private_hkid_min;
+    uint64_t num_tdx_hkids;
+    ia32_tme_activate_t ia32_tme_activate;
 } system_info_t;
 
 #define MAX_NUM_OF_LPS              1024
+#define MAX_NUM_OF_WBINVD_DOMAINS   8
+
+#define MAX_HKIDS 2048
+
+
+typedef enum
+{
+    PSEAMLDR_STATE_READY            = 0,
+    PSEAMLDR_STATE_INSTALL          = 1,
+    PSEAMLDR_STATE_SHUTDOWN         = 2,
+    PSEAMLDR_STATE_CLEANUP          = 3
+} pseamldr_state_e;
 
 typedef struct pseamldr_data_s
 {
@@ -152,6 +180,22 @@ typedef struct pseamldr_data_s
     void*                 psysinfo_fast_ref_ptr;
 
     rsa_ctx_t             rsa_context;
+
+    bool_t                init_done;
+    pseamldr_state_e      current_flow;
+    bool_t                cache_dirty[MAX_NUM_OF_WBINVD_DOMAINS];
+    bool_t                key_dirty[MAX_PKGS];
+    bool_t                svn_dirty[MAX_PKGS];
+    uint32_t              next_kid_to_config[MAX_PKGS];
+    uint32_t              next_block_to_flush[MAX_NUM_OF_WBINVD_DOMAINS];
+    uint32_t              max_pkg_lps[MAX_PKGS];
+    uint32_t              max_domain_lps[MAX_NUM_OF_WBINVD_DOMAINS];
+    uint8_t               cleanup_bitmap[MAX_NUM_OF_LPS / 8];
+    uint32_t              lps_in_cleanup;
+    uint32_t              cleanup_lps_per_package[MAX_PKGS];
+    uint32_t              cleanup_lps_per_domain[MAX_NUM_OF_WBINVD_DOMAINS];
+
+    uint32_t              x2apic_pkg_id_shift_count;
 
 #ifdef DEBUGFEATURE_TDX_DBG_TRACE
     uint32_t              local_dbg_msg_num;

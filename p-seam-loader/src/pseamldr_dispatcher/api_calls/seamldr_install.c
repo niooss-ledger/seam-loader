@@ -1,11 +1,24 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file seamldr_update.c
  * @brief SEAMLDR.UPDATE API handler
@@ -172,7 +185,7 @@ static bool_t verify_seam_sigstruct_signature(seam_sigstruct_t* seam_sigstruct)
     uint8_t signature[SIGSTRUCT_SIGNATURE_SIZE];
 
     pseamldr_memcpy(modulus, sizeof(modulus), seam_sigstruct->modulus, SIGSTRUCT_MODULUS_SIZE);
-    pseamldr_memcpy(signature, sizeof(signature), seam_sigstruct->signature, SIGSTRUCT_MODULUS_SIZE);
+    pseamldr_memcpy(signature, sizeof(signature), seam_sigstruct->signature, SIGSTRUCT_SIGNATURE_SIZE);
     exponent = seam_sigstruct->exponent;
 
     uint8_t comp_sigs[sizeof(seam_sigstruct_t) - SEAM_SIGSTRUCT_SIG_SIZE];
@@ -229,18 +242,25 @@ static api_error_type verify_manifest(pseamldr_data_t* pseamldr_data, seamldr_pa
     uint8_t new_module_svn = seam_sigstruct->seamsvn.seam_minor_svn;
     uint8_t new_module_version = seam_sigstruct->seamsvn.seam_major_svn;
 
+    uint8_t current_module_svn = pseamldr_data->seamextend_snapshot.tee_tcb_svn.seam_minor_svn;
+    uint8_t current_module_version = pseamldr_data->seamextend_snapshot.tee_tcb_svn.seam_major_svn;
+
+    // Prevent loading a TDX module with a major version of 0.
+    IF_RARE (new_module_version == 0)
+    {
+        TDX_ERROR("Unable to load TDX module with major version of 0!\n");
+        return PSEAMLDR_EUNSUPPORTED;
+    }
+
     // If the requested scenario is UPDATE (i.e. TMP_PARAMS.SCENARIO == 1), do:
     if (seamldr_params->scenario == SEAMLDR_SCENARIO_UPDATE)
     {
-        uint8_t current_module_svn = pseamldr_data->seamextend_snapshot.tee_tcb_svn.seam_minor_svn;
-        uint8_t current_module_version = pseamldr_data->seamextend_snapshot.tee_tcb_svn.seam_major_svn;
-
         // If the modules are of different TDX versions (i.e if TMP_CURRENT_VERSION != TMP_MODULE_VERSION)
-        // then set ERROR_CODE = EBADCALL and go to "Update End".
+        // then set ERROR_CODE = EUNSUPPORTED and go to "Update End".
         IF_RARE (new_module_version != current_module_version)
         {
             TDX_ERROR("Different module major versions - %d and %d\n", current_module_version, new_module_version);
-            return PSEAMLDR_EBADCALL;
+            return PSEAMLDR_EUNSUPPORTED;
         }
 
         // If the new module has smaller minor SEAM SVN than the minor SEAM SVN of the currently loaded module
@@ -249,6 +269,40 @@ static api_error_type verify_manifest(pseamldr_data_t* pseamldr_data, seamldr_pa
         {
             TDX_ERROR("New module has smaller SEAM SVN than of the current module\n");
             return PSEAMLDR_EBADSIG;
+        }
+    }
+    else // SEAMLDR_SCENARIO_LOAD
+    {
+        bool_t keys_or_caches_dirty = false;
+
+        for (uint32_t i = 0; i < MAX_PKGS; i++)
+        {
+            keys_or_caches_dirty |= pseamldr_data->key_dirty[i];
+        }
+
+        for (uint32_t i = 0; i < MAX_NUM_OF_WBINVD_DOMAINS; i++)
+        {
+            keys_or_caches_dirty |= pseamldr_data->cache_dirty[i];
+        }
+
+        IF_RARE (keys_or_caches_dirty)
+        {
+            // Set error code to ECLEANUPREQ and fail if current module and new module have different svn major version
+            // re-loads across major versions are always potentially a downgrade
+            IF_RARE (current_module_version != new_module_version)
+            {
+                TDX_ERROR("Different module major versions - %d and %d - cleanup required\n",
+                          current_module_version, new_module_version);
+                return PSEAMLDR_ECLEANUPREQ;
+            }
+
+            // Set error code to ECLEANUPREQ and fail if current module's minor svn > new module
+            // prevent downgrade
+            IF_RARE (new_module_svn < current_module_svn)
+            {
+                TDX_ERROR("New module has smaller SEAM SVN than of the current module - cleanup required\n");
+                return PSEAMLDR_ECLEANUPREQ;
+            }
         }
     }
 
@@ -326,10 +380,11 @@ static api_error_type check_seamldr_params(pseamldr_data_t* pseamldr_data, seaml
 
     uint64_t max_module_pages = SEAMLDR_PARAMS_MAX_MODULE_PAGES_V0;
 
-    IF_RARE (seamldr_params->num_module_pages > max_module_pages)
+    IF_RARE ((seamldr_params->num_module_pages < SEAMLDR_PARAMS_MIN_MODULE_PAGES) ||
+             (seamldr_params->num_module_pages > max_module_pages))
     {
-        TDX_ERROR("Seamldr params num of module pages - %d, exceed maximum - %d\n",
-                seamldr_params->num_module_pages, max_module_pages);
+        TDX_ERROR("Seamldr params num of module pages - %d, exceed min/max - %d/%d\n",
+                seamldr_params->num_module_pages, SEAMLDR_PARAMS_MIN_MODULE_PAGES, max_module_pages);
         return PSEAMLDR_EBADPARAM;
     }
 
@@ -686,6 +741,29 @@ static api_error_type install_epilogue(api_error_type flow_status, uint64_t rec_
 
             pseamldr_data->num_remaining_updates--;
         }
+
+        // Set KEY_DIRTY on all existing packages
+        for (uint32_t i = 0; i < MAX_PKGS; i++)
+        {
+            if (pseamldr_data->max_pkg_lps[i])
+            {
+                pseamldr_data->key_dirty[i] = true;
+            }
+        }
+
+        // Set CACHE_DIRTY on all existing cache domains
+        for (uint32_t i = 0; i < MAX_NUM_OF_WBINVD_DOMAINS; i++)
+        {
+            if (pseamldr_data->max_domain_lps[i])
+            {
+                pseamldr_data->cache_dirty[i] = true;
+            }
+        }
+
+        // Set NEXT_BLOCK_TO_FLUSH to all 0's
+        basic_memset_to_zero(pseamldr_data->next_block_to_flush, sizeof(pseamldr_data->next_block_to_flush));
+        // Set NEXT_KID_TO_CONFIG to all 0's
+        basic_memset_to_zero(pseamldr_data->next_kid_to_config, sizeof(pseamldr_data->next_kid_to_config));
     }
     else
     {
@@ -732,6 +810,16 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
         goto EXIT;
     }
 
+    // Return EBADCALL if CURRENT_FLOW is not INSTALL or READY
+    IF_RARE ((pseamldr_data->current_flow != PSEAMLDR_STATE_READY) &&
+             (pseamldr_data->current_flow != PSEAMLDR_STATE_INSTALL))
+    {
+        TDX_ERROR("Incorrect current flow - %d, not READY or INSTALL\n", pseamldr_data->current_flow);
+        return_value = PSEAMLDR_EBADCALL;
+        goto EXIT;
+    }
+
+
     // If this API was already invoked on this LP in the current update session,
     // then set RAX = EBADCALL, RDX = 0 and return
     // Mark this LP as invoked in the current update session
@@ -753,9 +841,24 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
         pseamldr_data->seamextend_snapshot.seam_ready = 0;
         seamextend_write(&pseamldr_data->seamextend_snapshot);
         pseamldr_data->seamextend_snapshot.seam_ready = seam_ready_original;
+
+        pseamldr_data->current_flow = PSEAMLDR_STATE_INSTALL;
     }
 
     pseamldr_data->lps_in_update++;
+
+    // Perform INIT phase
+    if (!pseamldr_data->init_done)
+    {
+        uint32_t pkg_id = get_current_pkgid();
+
+        if (pseamldr_data->max_pkg_lps[pkg_id] == 0)
+        {
+            ia32_core_thread_count_t core_thread_count = { .raw = ia32_rdmsr(IA32_CORE_THREAD_COUNT_MSR_ADDR) };
+            pseamldr_data->max_pkg_lps[pkg_id] = core_thread_count.lps_in_package;
+            pseamldr_data->max_domain_lps[pkg_id] = core_thread_count.lps_in_package;
+        }
+    }
 
     // Evict the SEAM module’s VMCS associated with this LP from the VMCS cache
     // (by executing VMCLEAR with physical address SEAMRR.BASE + 4K + CPUID.B.0:EDX * 4K).
@@ -774,6 +877,7 @@ api_error_type seamldr_install(uint64_t seamldr_params_pa)
     }
 
     // The following steps apply only to the last LP:
+    pseamldr_data->init_done = true;
 
     // ************************ Input checks ************************
     // Check SEAMLDR PARAMS input PA
@@ -872,6 +976,8 @@ UPDATE_END:
 
     basic_memset_to_zero(pseamldr_data->update_bitmap, sizeof(pseamldr_data->update_bitmap));
     pseamldr_data->lps_in_update = 0;
+
+    pseamldr_data->current_flow = PSEAMLDR_STATE_READY;
 
 EXIT:
 

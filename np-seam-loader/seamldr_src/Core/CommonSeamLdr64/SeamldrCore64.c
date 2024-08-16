@@ -1,18 +1,24 @@
-//**********************************************************************;
-//*                                                                    *;
-//* Intel Proprietary                                                  *;
-//*                                                                    *;
-//* Copyright 2021 Intel Corporation All Rights Reserved.              *;
-//*                                                                    *;
-//* Your use of this software is governed by the TDX Source Code       *;
-//* LIMITED USE LICENSE.                                               *;
-//*                                                                    *;
-//* The Materials are provided "as is," without any express or         *;
-//* implied warranty of any kind including warranties of               *;
-//* merchantability, non-infringement, title, or fitness for a         *;
-//* particular purpose.                                                *;
-//*                                                                    *;
-//**********************************************************************;
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 
 #include "common.h"
 #include "Common64.h"
@@ -40,7 +46,7 @@ void MemZeroWithMovdir64B(UINT8* dst, UINT64 size) {
     __declspec(align(MOVDIR64B_BLOCK_SIZE)) UINT8 ZeroBlock[MOVDIR64B_BLOCK_SIZE] = { 0 };
     UINT64 NumOfBlocks = size / MOVDIR64B_BLOCK_SIZE;
 
-    for (UINT32 Idx = 0; Idx < NumOfBlocks; Idx++) {
+    for (UINT32 Idx = 0; (UINT64)Idx < NumOfBlocks; Idx++) {
         Movdir64B(ZeroBlock, dst);
         dst += MOVDIR64B_BLOCK_SIZE;
     }
@@ -53,7 +59,7 @@ static UINT32 GetX2ApicId()
 {
     UINT32 CpuidEdx;
 
-    CpuidEx(CPUID_V2_EXTENDED_TOPOLOGY, CPUID_EXTENDED_TOPOLOGY_LEVEL_TYPE_SMT, NULL, NULL, NULL, &CpuidEdx);
+    (void)CpuidEx(CPUID_V2_EXTENDED_TOPOLOGY, CPUID_EXTENDED_TOPOLOGY_LEVEL_TYPE_SMT, NULL, NULL, NULL, &CpuidEdx);
 
     return CpuidEdx;
 }
@@ -140,7 +146,7 @@ UINT64 SetupDataRegion(SEAMRR_PT_CTX *SeamrrPtCtx) {
     UINT64 CurPhysAddr = SeamldrData.SeamrrBase + SeamldrData.SeamrrSize - (_4KB + SeamldrData.PSeamldrConsts->CCodeRgnSize + SeamldrData.PSeamldrConsts->CDataStackSize + C_P_SYS_INFO_TABLE_SIZE + SeamldrData.PSeamldrConsts->CDataRgnSize);
     UINT32 Idx;
 
-    for (Idx = 0; Idx < SeamldrData.PSeamldrConsts->CDataRgnSize / SEAMRR_PAGE_SIZE; Idx++) {
+    for (Idx = 0; (UINT64)Idx < SeamldrData.PSeamldrConsts->CDataRgnSize / SEAMRR_PAGE_SIZE; Idx++) {
         if (MapPage(SeamrrPtCtx, CurLinAddr, CurPhysAddr, IA32_PG_P | IA32_PG_RW | IA32_PG_A | IA32_PG_D | IA32_PG_NX, PAGE_4K, FALSE) == NULL) {
             return NP_SEAMLDR_PARAMS_STATUS_ENOMEM;
         }          
@@ -443,7 +449,7 @@ void SeamldrAcm(SEAMLDR_COM64_DATA *pCom64, PT_CTX* PtCtx) {
         goto EXIT;
     }
     
-    InitPseamldrPtCtx(&SeamrrPtCtx, SeamldrData.SeamrrVa, SeamldrData.SeamrrBase, SeamldrData.SeamrrSize, SeamldrData.PSysInfoTable->PSeamldrRange.Base, CPagingStructSize);
+    (void)InitPseamldrPtCtx(&SeamrrPtCtx, SeamldrData.SeamrrVa, SeamldrData.SeamrrBase, SeamldrData.SeamrrSize, SeamldrData.PSysInfoTable->PSeamldrRange.Base, CPagingStructSize);
 
     Status = RelocateImage(SeamldrData.SeamrrVaLimit - (SeamldrData.PSeamldrConsts->CCodeRgnSize + C_P_SYS_INFO_TABLE_SIZE), C_CODE_RGN_BASE | SeamldrData.AslrRand);
     if (Status != NP_SEAMLDR_PARAMS_STATUS_SUCCESS) {

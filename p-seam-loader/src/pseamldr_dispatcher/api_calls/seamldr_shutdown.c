@@ -1,16 +1,29 @@
-// Intel Proprietary
-// 
-// Copyright 2021 Intel Corporation All Rights Reserved.
-// 
-// Your use of this software is governed by the TDX Source Code LIMITED USE LICENSE.
-// 
-// The Materials are provided “as is,” without any express or implied warranty of any kind including warranties
-// of merchantability, non-infringement, title, or fitness for a particular purpose.
+// Copyright (C) 2023 Intel Corporation                                          
+//                                                                               
+// Permission is hereby granted, free of charge, to any person obtaining a copy  
+// of this software and associated documentation files (the "Software"),         
+// to deal in the Software without restriction, including without limitation     
+// the rights to use, copy, modify, merge, publish, distribute, sublicense,      
+// and/or sell copies of the Software, and to permit persons to whom             
+// the Software is furnished to do so, subject to the following conditions:      
+//                                                                               
+// The above copyright notice and this permission notice shall be included       
+// in all copies or substantial portions of the Software.                        
+//                                                                               
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS       
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL      
+// THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES             
+// OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,      
+// ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE            
+// OR OTHER DEALINGS IN THE SOFTWARE.                                            
+//                                                                               
+// SPDX-License-Identifier: MIT
 /**
  * @file seamldr_shutdown.c
  * @brief SEAMLDR.SHUTDOWN API handler
  */
-#include "../../../include/pseamldr_basic_defs.h"
+#include "pseamldr_basic_defs.h"
 #include "pseamldr_api_handlers.h"
 #include "x86_defs/x86_defs.h"
 #include "memory_handlers/keyhole_manager.h"
@@ -35,6 +48,36 @@ api_error_type seamldr_shutdown(void)
         goto EXIT;
     }
 
+    // Return EBADCALL if CURRENT_FLOW is not SHUTDOWN or READY
+    IF_RARE ((pseamldr_data->current_flow != PSEAMLDR_STATE_SHUTDOWN) &&
+             (pseamldr_data->current_flow != PSEAMLDR_STATE_READY))
+    {
+        TDX_ERROR("Incorrect current flow - %d, not SHUTDOWN or READY\n", pseamldr_data->current_flow);
+        return_value = PSEAMLDR_EBADCALL;
+        goto EXIT;
+    }
+
+    // Return ECLEANUPREQ if either KEY_DIRTY or CACHE_DIRTY are not all 0’s
+    for (uint32_t i = 0; i < MAX_PKGS; i++)
+    {
+        IF_RARE (pseamldr_data->key_dirty[i])
+        {
+            TDX_ERROR("Cleanup required, dirty key on package %d\n", i);
+            return_value = PSEAMLDR_ECLEANUPREQ;
+            goto EXIT;
+        }
+    }
+
+    for (uint32_t i = 0; i < MAX_NUM_OF_WBINVD_DOMAINS; i++)
+    {
+        IF_RARE (pseamldr_data->cache_dirty[i])
+        {
+            TDX_ERROR("Cleanup required, dirty cache on domain %d\n", i);
+            return_value = PSEAMLDR_ECLEANUPREQ;
+            goto EXIT;
+        }
+    }
+
     // Mark this LP as invoked in the current update session (i.e. set SHUTDOWN_BITMAP[X2APICID] = 1).
     IF_COMMON (bit_test_and_set(pseamldr_data->shutdown_bitmap, lpid) == 0)
     {
@@ -49,6 +92,8 @@ api_error_type seamldr_shutdown(void)
         seamextend_read(&pseamldr_data->seamextend_snapshot);
         pseamldr_data->seamextend_snapshot.seam_ready = 0;
         seamextend_write(&pseamldr_data->seamextend_snapshot);
+
+        pseamldr_data->current_flow = PSEAMLDR_STATE_SHUTDOWN;
     }
 
     // If this is not the last LP on which this API is invoked then set RAX = 0 and return.
